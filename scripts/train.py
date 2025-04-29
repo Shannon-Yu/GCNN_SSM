@@ -13,7 +13,7 @@ project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
 
 os.environ["XLA_FLAGS"] = "--xla_gpu_cuda_data_dir=/usr/local/cuda"
-os.environ["NETKET_EXPERIMENTAL_SHARDING"] = "0"  # 启用NetKet的分片功能
+os.environ["NETKET_EXPERIMENTAL_SHARDING"] = "1"  # 启用NetKet的分片功能
 os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"  # 使用平台特定的内存分配器
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"  # 禁用预分配
 os.environ["JAX_PLATFORM_NAME"] = "gpu"
