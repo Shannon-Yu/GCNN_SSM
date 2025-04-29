@@ -12,7 +12,9 @@ def create_k_mesh(n_points=30):
 def calculate_spin_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     """计算自旋结构因子 S(k) = ∑_r e^(ik·r) <S_0·S_r>"""
     if log_file is None:
-        log_file = os.path.join(save_dir, "analyze.log")
+        # 默认日志文件将由调用者提供
+        log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2=0.05_J1=0.05.log")
+    log_message(log_file, "-"*80)
     log_message(log_file, "开始计算自旋结构因子...")
 
     N = lattice.n_nodes
@@ -87,7 +89,9 @@ def calculate_spin_structure_factor(vqs, lattice, L, save_dir, log_file=None):
 def calculate_plaquette_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     """计算简盘结构因子，使用自旋交换算符实现循环置换"""
     if log_file is None:
-        log_file = os.path.join(save_dir, "analyze.log")
+        # 默认日志文件将由调用者提供
+        log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2=0.05_J1=0.05.log")
+    log_message(log_file, "-"*80)
     log_message(log_file, "开始计算简盘结构因子...")
 
     # 创建k点网格
@@ -236,7 +240,9 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     C_d(r) = <[S(0)·S(0+x)][S(r)·S(r+x)]>
     """
     if log_file is None:
-        log_file = os.path.join(save_dir, "analyze.log")
+        # 默认日志文件将由调用者提供
+        log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2=0.05_J1=0.05.log")
+    log_message(log_file, "-"*80)
     log_message(log_file, "开始计算二聚体结构因子...")
 
     # 创建k点网格
@@ -329,7 +335,8 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
 def calculate_correlation_ratios(k_points, structure_factor, save_dir, type_name, log_file=None):
     """计算相关比率 R = 1 - S(k+δk)/S(k)"""
     if log_file is None:
-        log_file = os.path.join(save_dir, "analyze.log")
+        # 默认日志文件将由调用者提供
+        log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L=4_J2=0.05_J1=0.05.log")
     # 找到结构因子的最大值位置
     max_idx = np.unravel_index(np.argmax(structure_factor), structure_factor.shape)
     k_max_x = k_points[max_idx[1]]
@@ -376,6 +383,7 @@ def calculate_correlation_ratios(k_points, structure_factor, save_dir, type_name
     np.save(os.path.join(save_dir, f"{type_name}_correlation_ratio.npy"), ratio_data)
 
     # 记录相关比率信息
+    log_message(log_file, "-"*80)
     log_message(log_file, f"{type_name.capitalize()} 相关比率: {ratio:.4f}, 峰值位置: ({k_max_x:.2f}, {k_max_y:.2f})")
 
     return ratio, (k_max_x, k_max_y)

@@ -52,8 +52,10 @@ def main(args=None):
     os.makedirs(analysis_dir, exist_ok=True)
 
     # 创建日志文件
-    analyze_log = os.path.join(analysis_dir, "analyze.log")
+    analyze_log = os.path.join(analysis_dir, f"analyze_L={L}_J2={J2:.2f}_J1={J1:.2f}.log")
+    log_message(analyze_log, "="*80)
     log_message(analyze_log, f"开始分析量子态: L={L}, J2={J2:.2f}, J1={J1:.2f}")
+    log_message(analyze_log, "="*80)
 
     # 创建图像目录
     plot_dir = os.path.join(analysis_dir, "plots")
@@ -86,32 +88,32 @@ def main(args=None):
         os.makedirs(correlation_dir, exist_ok=True)
 
         # 计算自旋结构因子
-        log_message(analyze_log, "计算自旋结构因子...")
         k_points, spin_sf = calculate_spin_structure_factor(vqs, lattice, L, spin_dir, analyze_log)
         plot_structure_factor(k_points, spin_sf, L, J2, J1, "Spin", plot_dir)
 
         # 计算简盘结构因子
-        log_message(analyze_log, "计算简盘结构因子...")
         k_points, plaq_sf = calculate_plaquette_structure_factor(vqs, lattice, L, plaquette_dir, analyze_log)
         plot_structure_factor(k_points, plaq_sf, L, J2, J1, "Plaquette", plot_dir)
 
         # 计算二聚体结构因子
-        log_message(analyze_log, "计算二聚体结构因子...")
         k_points, dimer_sf = calculate_dimer_structure_factor(vqs, lattice, L, dimer_dir, analyze_log)
         plot_structure_factor(k_points, dimer_sf, L, J2, J1, "Dimer", plot_dir)
 
         # 计算相关比率
-        log_message(analyze_log, "计算相关比率...")
         neel_ratio, _ = calculate_correlation_ratios(k_points, spin_sf, correlation_dir, "neel", analyze_log)
         plaq_ratio, _ = calculate_correlation_ratios(k_points, plaq_sf, correlation_dir, "plaquette", analyze_log)
         dimer_ratio, _ = calculate_correlation_ratios(k_points, dimer_sf, correlation_dir, "dimer", analyze_log)
 
         # 输出结果摘要
+        log_message(analyze_log, "="*80)
         log_message(analyze_log, f"分析完成! 相关比率: Neel={neel_ratio:.4f}, Plaquette={plaq_ratio:.4f}, Dimer={dimer_ratio:.4f}")
+        log_message(analyze_log, "="*80)
 
     except Exception as e:
+        log_message(analyze_log, "!"*80)
         log_message(analyze_log, f"处理 L={L}, J2={J2:.2f}, J1={J1:.2f} 时出错: {str(e)}")
         log_message(analyze_log, traceback.format_exc())
+        log_message(analyze_log, "!"*80)
 
 if __name__ == "__main__":
     main()

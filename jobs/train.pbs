@@ -47,7 +47,6 @@ for J2 in $J2_VALUES; do
         echo "Starting computation L=$L_VALUE, J2=$J2, J1=$J1 at: $(date)"
 
         # 提交任务到后台运行
-        cd /home/users/ntu/s240076/Repositories/Projects/ViT_NQS/Job_sub/SS_GCNN
         singularity exec --nv -B /scratch,/app \
             /home/users/ntu/s240076/Repositories/Jupyter_server/config/netket.sif \
             python scripts/train.py $L_VALUE $J2 $J1 &
