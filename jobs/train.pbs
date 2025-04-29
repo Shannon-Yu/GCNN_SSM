@@ -20,17 +20,21 @@ nvidia-smi
 # 加载必要的模块
 module load singularity
 
-# 从config.py读取参数列表
-echo "Reading parameters from config.py..."
-L_VALUE=$(singularity exec --nv -B /scratch,/app \
-    /home/users/ntu/s240076/Repositories/Jupyter_server/config/netket.sif \
-    python -c "from configs.config import SystemConfig; print(SystemConfig.L)")
-J2_VALUES=$(singularity exec --nv -B /scratch,/app \
-    /home/users/ntu/s240076/Repositories/Jupyter_server/config/netket.sif \
-    python -c "from configs.config import SystemConfig; print(' '.join(map(str, SystemConfig.J2_LIST)))")
-J1_VALUES=$(singularity exec --nv -B /scratch,/app \
-    /home/users/ntu/s240076/Repositories/Jupyter_server/config/netket.sif \
-    python -c "from configs.config import SystemConfig; print(' '.join(map(str, SystemConfig.J1_LIST)))")
+# 从training_config.py读取参数列表
+echo "Reading parameters from training_config.py..."
+echo "当前工作目录: $(pwd)"
+echo "列出configs目录内容:"
+ls -la configs/
+
+# 直接设置参数值，避免使用singularity读取配置
+L_VALUE=5
+J2_VALUES="0.05"
+J1_VALUES="0.00"
+
+echo "手动设置参数值:"
+echo "L_VALUE = $L_VALUE"
+echo "J2_VALUES = $J2_VALUES"
+echo "J1_VALUES = $J1_VALUES"
 
 echo "Processing the following parameter combinations:"
 echo "L value: $L_VALUE"

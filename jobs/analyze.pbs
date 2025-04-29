@@ -1,7 +1,7 @@
 #!/bin/sh
 
 #PBS -q normal
-#PBS -l select=1:ngpus=2
+#PBS -l select=1:ngpus=4
 #PBS -l walltime=20:00:00
 #PBS -P 12004256
 ###PBS -P personal-s240076
@@ -26,30 +26,45 @@ module load singularity
 # 格式: "L J2 J1"
 PARAM_SETS=(
   "4 0.05 0.00"
+  "4 0.05 0.01"
+  "4 0.05 0.06"
+  "4 0.05 0.07"
+  "4 0.05 0.08"
+  "4 0.05 0.09"
+  "4 0.05 0.10"
 )
+
+# 并行任务最大数量
+max_tasks=2
+current_tasks=0
 
 # 遍历所有参数组合并运行分析
 for params in "${PARAM_SETS[@]}"; do
   # 提取参数
   read -r L J2 J1 <<< "$params"
 
-  echo "Analyzing: L=$L, J2=$J2, J1=$J1"
+  echo "Starting analysis: L=$L, J2=$J2, J1=$J1 at: $(date)"
 
-  # 运行分析脚本
+  # 运行分析脚本（后台运行）
   singularity exec --nv -B /scratch,/app \
     /home/users/ntu/s240076/Repositories/Jupyter_server/config/netket.sif \
-    python scripts/analyze.py --L $L --J2 $J2 --J1 $J1
+    python scripts/analyze.py --L $L --J2 $J2 --J1 $J1 &
 
-  # 检查分析脚本是否成功完成
-  if [ $? -eq 0 ]; then
-    echo "Analysis for L=$L, J2=$J2, J1=$J1 completed successfully"
-  else
-    echo "Analysis for L=$L, J2=$J2, J1=$J1 failed"
+  current_tasks=$((current_tasks + 1))
+
+  # 如果达到最大并行任务数，则等待这批任务全部结束，再继续提交
+  if [ $current_tasks -ge $max_tasks ]; then
+    wait
+    current_tasks=0
+    echo "Batch of analysis tasks completed at: $(date)"
   fi
 
-  # 打印分隔线
+  echo "Submitted analysis job: L=$L, J2=$J2, J1=$J1"
   echo "---------------------------------------"
 done
+
+# 等待剩余任务
+wait
 
 # 整理结果
 echo "Organizing results..."

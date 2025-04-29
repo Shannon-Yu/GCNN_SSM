@@ -10,7 +10,7 @@ import numpy as np
 from netket.utils.group import PointGroup, Identity
 from netket.utils.group.planar import rotation, glide_group
 
-from configs.config import ModelConfig, TrainingConfig, SystemConfig
+from configs.training_config import ModelConfig, TrainingConfig, SystemConfig
 from src.physics.shastry_sutherland import (
     shastry_sutherland_lattice, 
     shastry_sutherland_hamiltonian, 

@@ -25,7 +25,7 @@ import netket as nk
 import netket.optimizer as nk_opt
 
 # 导入自定义模块
-from configs.config import ModelConfig, TrainingConfig, SystemConfig
+from configs.training_config import ModelConfig, TrainingConfig, SystemConfig
 from src.models.gcnn import CustomFreeEnergyVMC_SRt
 from src.utils.logging import log_message
 from src.models.quantum_state import create_quantum_state, save_quantum_state
