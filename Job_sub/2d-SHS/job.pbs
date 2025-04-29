@@ -1,0 +1,69 @@
+#!/bin/sh
+
+#PBS -q normal
+#PBS -l select=1:ngpus=4
+#PBS -l walltime=22:00:00
+#PBS -P 12004256
+###PBS -P personal-s240076
+#PBS -N vit-Shastry
+#PBS -j oe
+
+# 进入工作目录
+cd $PBS_O_WORKDIR || exit $?
+
+# 记录作业开始时间和节点信息
+echo "Job start at: $(date)"
+echo "Running on node: $(hostname)"
+echo "GPU Information:"
+nvidia-smi
+
+# 加载必要的模块
+module load singularity
+
+# 从config.py读取参数列表
+echo "Reading parameters from config.py..."
+L_VALUE=$(singularity exec --nv -B /scratch,/app \
+    /home/users/ntu/s240076/Repositories/Jupyter_server/config/netket.sif \
+    python -c "from config import SystemConfig; print(SystemConfig.L)")
+J2_VALUES=$(singularity exec --nv -B /scratch,/app \
+    /home/users/ntu/s240076/Repositories/Jupyter_server/config/netket.sif \
+    python -c "from config import SystemConfig; print(' '.join(map(str, SystemConfig.J2_LIST)))")
+J1_VALUES=$(singularity exec --nv -B /scratch,/app \
+    /home/users/ntu/s240076/Repositories/Jupyter_server/config/netket.sif \
+    python -c "from config import SystemConfig; print(' '.join(map(str, SystemConfig.J1_LIST)))")
+
+echo "Processing the following parameter combinations:"
+echo "L value: $L_VALUE"
+echo "J2 values: $J2_VALUES"
+echo "J1 values: $J1_VALUES"
+echo "Fixed J2 = 1.0"
+
+# 并行任务最大数量
+max_tasks=6
+current_tasks=0
+
+for J2 in $J2_VALUES; do
+    for J1 in $J1_VALUES; do
+        echo "Starting computation L=$L_VALUE, J2=$J2, J1=$J1 at: $(date)"
+        
+        # 提交任务到后台运行
+        singularity exec --nv -B /scratch,/app \
+            /home/users/ntu/s240076/Repositories/Jupyter_server/config/netket.sif \
+            python main.py $L_VALUE $J2 $J1 &
+        
+        current_tasks=$((current_tasks + 1))
+        
+        # 如果达到最大并行任务数，则等待这批任务全部结束，再继续提交
+        if [ $current_tasks -ge $max_tasks ]; then
+            wait
+            current_tasks=0
+        fi
+        
+        echo "Submitted job L=$L_VALUE, J2=$J2, J1=$J1 at: $(date)"
+    done
+done
+
+# 等待剩余任务
+wait
+
+echo "Job finished at: $(date)"

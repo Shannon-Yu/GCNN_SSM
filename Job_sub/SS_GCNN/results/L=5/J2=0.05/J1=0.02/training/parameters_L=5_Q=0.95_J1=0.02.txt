@@ -1,0 +1,16 @@
+{
+    "Lx": 5,
+    "Ly": 5,
+    "J1": 0.02,
+    "J2": 0.05,
+    "N_features": 4,
+    "N_layers": 4,
+    "n_samples": 4096,
+    "chunk_size": 1024,
+    "learning_rate": 0.02,
+    "n_iters": 1000,
+    "n_train": 1,
+    "temperature": 1.0,
+    "reference_energy": null,
+    "n_params": 19628
+}

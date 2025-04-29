@@ -1,0 +1,28 @@
+{
+    "seed": 0,
+    "diag_shift": 0.001,
+    "eta": 0.05,
+    "N_opt": 2000,
+    "N_train": 1,
+    "N_samples": 4096,
+    "N_discard": 0,
+    "d_model": 48,
+    "heads": 12,
+    "num_layers": 4,
+    "mlp_dim": 96,
+    "patch_size": 4,
+    "L": 3,
+    "N": 36,
+    "J1": 0.8,
+    "J2": 1.0,
+    "h": 0.0,
+    "lattice_extent": [
+        3,
+        3
+    ],
+    "lattice_pbc": [
+        true,
+        true
+    ],
+    "total_sz": 0
+}

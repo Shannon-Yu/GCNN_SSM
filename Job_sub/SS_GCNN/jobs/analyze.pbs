@@ -1,0 +1,68 @@
+#!/bin/sh
+
+#PBS -q normal
+#PBS -l select=1:ngpus=1
+#PBS -l walltime=20:00:00
+#PBS -P 12004256
+###PBS -P personal-s240076
+#PBS -N analyze-Shastry
+#PBS -j oe
+
+# 进入工作目录
+cd $PBS_O_WORKDIR || exit $?
+
+# 记录作业开始时间和节点信息
+echo "Analysis job start at: $(date)"
+echo "Running on node: $(hostname)"
+echo "GPU Information:"
+nvidia-smi
+
+# 加载必要的模块
+module load singularity
+
+# 记录分析开始信息到日志
+echo "[$(date)] 开始量子态结构因子分析" > job_analyze.log
+
+# 定义要分析的参数组合
+# 格式: "L J2 J1"
+PARAM_SETS=(
+  "4 0.05 0.00"
+)
+
+# 遍历所有参数组合并运行分析
+echo "Starting quantum state analysis for multiple parameter sets..."
+for params in "${PARAM_SETS[@]}"; do
+  # 提取参数
+  read -r L J2 J1 <<< "$params"
+
+  echo "[$(date)] 分析参数组合: L=$L, J2=$J2, J1=$J1" >> job_analyze.log
+  echo "Analyzing: L=$L, J2=$J2, J1=$J1"
+
+  # 运行分析脚本
+  cd /home/users/ntu/s240076/Repositories/Projects/ViT_NQS/Job_sub/SS_GCNN
+  singularity exec --nv -B /scratch,/app \
+    /home/users/ntu/s240076/Repositories/Jupyter_server/config/netket.sif \
+    python scripts/analyze.py --L $L --J2 $J2 --J1 $J1
+
+  # 检查分析脚本是否成功完成
+  if [ $? -eq 0 ]; then
+    echo "Analysis for L=$L, J2=$J2, J1=$J1 completed successfully"
+    echo "[$(date)] L=$L, J2=$J2, J1=$J1 分析成功完成" >> job_analyze.log
+  else
+    echo "Analysis for L=$L, J2=$J2, J1=$J1 failed"
+    echo "[$(date)] L=$L, J2=$J2, J1=$J1 分析失败" >> job_analyze.log
+  fi
+
+  # 打印分隔线
+  echo "---------------------------------------"
+done
+
+# 整理结果
+echo "Organizing results..."
+find results -name "*.png" -exec ls -la {} \; >> job_analyze.log
+
+# 记录磁盘使用情况
+echo "Disk usage for results:"
+du -sh results/ | tee -a job_analyze.log
+
+echo "Job finished at: $(date)"

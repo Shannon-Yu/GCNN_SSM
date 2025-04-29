@@ -1,0 +1,119 @@
+[2025-02-24 07:16:23] 
+==================================================
+[2025-02-24 07:16:23] Starting calculation for L=4, J2=0.8
+[2025-02-24 07:16:23] ==================================================
+[2025-02-24 07:16:23] System size: L=4, N=16
+[2025-02-24 07:16:23] Parameters: J1=1.0, J2=0.8
+[2025-02-24 07:16:23] Optimization parameters:
+[2025-02-24 07:16:23]   - Learning rate: 0.005
+[2025-02-24 07:16:23]   - Number of iterations: 10000
+[2025-02-24 07:16:23]   - Number of samples: 4096
+[2025-02-24 07:16:23]   - Number of samples to discard: 0
+[2025-02-24 07:16:23]   - Chunk size: 1024
+[2025-02-24 07:16:23] --------------------------------------------------
+[2025-02-24 07:16:26] Number of parameters = 11328
+[2025-02-24 07:16:26] Starting optimization...
+[2025-02-24 07:16:37] Step 0/10000: Current Total Energy = 13.773413-0.011405j
+[2025-02-24 07:18:09] Step 100/10000: Current Total Energy = 11.567639+0.110833j
+[2025-02-24 07:19:39] Step 200/10000: Current Total Energy = 8.816758-0.036288j
+[2025-02-24 07:21:08] Step 300/10000: Current Total Energy = 5.555020-0.039108j
+[2025-02-24 07:22:39] Step 400/10000: Current Total Energy = 2.695962+0.001161j
+[2025-02-24 07:24:09] Step 500/10000: Current Total Energy = 0.171092+0.091670j
+[2025-02-24 07:25:39] Step 600/10000: Current Total Energy = -2.144730+0.038300j
+[2025-02-24 07:27:08] Step 700/10000: Current Total Energy = -4.299147+0.055980j
+[2025-02-24 07:28:38] Step 800/10000: Current Total Energy = -5.975438-0.006151j
+[2025-02-24 07:30:08] Step 900/10000: Current Total Energy = -7.033985-0.039356j
+[2025-02-24 07:31:38] Step 1000/10000: Current Total Energy = -7.796198-0.018110j
+[2025-02-24 07:33:08] Step 1100/10000: Current Total Energy = -8.314917-0.026678j
+[2025-02-24 07:34:38] Step 1200/10000: Current Total Energy = -8.836008-0.010785j
+[2025-02-24 07:36:09] Step 1300/10000: Current Total Energy = -9.222184-0.013007j
+[2025-02-24 07:37:38] Step 1400/10000: Current Total Energy = -9.393380-0.002426j
+[2025-02-24 07:39:08] Step 1500/10000: Current Total Energy = -9.546640+0.020871j
+[2025-02-24 07:40:38] Step 1600/10000: Current Total Energy = -9.683110+0.000225j
+[2025-02-24 07:42:08] Step 1700/10000: Current Total Energy = -9.862262-0.009176j
+[2025-02-24 07:43:38] Step 1800/10000: Current Total Energy = -9.914815+0.008900j
+[2025-02-24 07:45:08] Step 1900/10000: Current Total Energy = -9.968968-0.001394j
+[2025-02-24 07:46:38] Step 2000/10000: Current Total Energy = -9.973701-0.003306j
+[2025-02-24 07:48:09] Step 2100/10000: Current Total Energy = -9.989090-0.005571j
+[2025-02-24 07:49:39] Step 2200/10000: Current Total Energy = -9.999389+0.001274j
+[2025-02-24 07:51:09] Step 2300/10000: Current Total Energy = -10.009458+0.001757j
+[2025-02-24 07:52:39] Step 2400/10000: Current Total Energy = -10.016199-0.000694j
+[2025-02-24 07:54:09] Step 2500/10000: Current Total Energy = -10.015867+0.001770j
+[2025-02-24 07:55:39] Step 2600/10000: Current Total Energy = -10.017280-0.000137j
+[2025-02-24 07:57:09] Step 2700/10000: Current Total Energy = -10.018017+0.002377j
+[2025-02-24 07:58:39] Step 2800/10000: Current Total Energy = -10.020534-0.000112j
+[2025-02-24 08:00:09] Step 2900/10000: Current Total Energy = -10.019300-0.000209j
+[2025-02-24 08:01:39] Step 3000/10000: Current Total Energy = -10.019291-0.000439j
+[2025-02-24 08:03:10] Step 3100/10000: Current Total Energy = -10.021137+0.000724j
+[2025-02-24 08:04:40] Step 3200/10000: Current Total Energy = -10.017094+0.001623j
+[2025-02-24 08:06:10] Step 3300/10000: Current Total Energy = -10.020131+0.000472j
+[2025-02-24 08:07:40] Step 3400/10000: Current Total Energy = -10.021945-0.000236j
+[2025-02-24 08:09:11] Step 3500/10000: Current Total Energy = -10.021366-0.000595j
+[2025-02-24 08:10:41] Step 3600/10000: Current Total Energy = -10.021872-0.000024j
+[2025-02-24 08:12:11] Step 3700/10000: Current Total Energy = -10.022305+0.001319j
+[2025-02-24 08:13:41] Step 3800/10000: Current Total Energy = -10.021004+0.000065j
+[2025-02-24 08:15:11] Step 3900/10000: Current Total Energy = -10.022422+0.000611j
+[2025-02-24 08:16:42] Step 4000/10000: Current Total Energy = -10.018622-0.000383j
+[2025-02-24 08:18:12] Step 4100/10000: Current Total Energy = -10.019808-0.000438j
+[2025-02-24 08:19:42] Step 4200/10000: Current Total Energy = -10.020380-0.001997j
+[2025-02-24 08:21:12] Step 4300/10000: Current Total Energy = -10.021709+0.000782j
+[2025-02-24 08:22:42] Step 4400/10000: Current Total Energy = -10.018353+0.000194j
+[2025-02-24 08:24:12] Step 4500/10000: Current Total Energy = -10.024672-0.000062j
+[2025-02-24 08:25:42] Step 4600/10000: Current Total Energy = -10.020421+0.000199j
+[2025-02-24 08:27:12] Step 4700/10000: Current Total Energy = -10.027966+0.000373j
+[2025-02-24 08:28:43] Step 4800/10000: Current Total Energy = -10.025256-0.000432j
+[2025-02-24 08:30:13] Step 4900/10000: Current Total Energy = -10.027476+0.000443j
+[2025-02-24 08:31:43] Step 5000/10000: Current Total Energy = -10.027439+0.000892j
+[2025-02-24 08:33:13] Step 5100/10000: Current Total Energy = -10.028214+0.002564j
+[2025-02-24 08:34:44] Step 5200/10000: Current Total Energy = -10.026722+0.001041j
+[2025-02-24 08:36:14] Step 5300/10000: Current Total Energy = -10.030994-0.000685j
+[2025-02-24 08:37:44] Step 5400/10000: Current Total Energy = -10.033746+0.001203j
+[2025-02-24 08:39:14] Step 5500/10000: Current Total Energy = -10.034011-0.000446j
+[2025-02-24 08:40:44] Step 5600/10000: Current Total Energy = -10.033350-0.000841j
+[2025-02-24 08:42:14] Step 5700/10000: Current Total Energy = -10.033703-0.002085j
+[2025-02-24 08:43:44] Step 5800/10000: Current Total Energy = -10.029601-0.001906j
+[2025-02-24 08:45:15] Step 5900/10000: Current Total Energy = -10.031921-0.000020j
+[2025-02-24 08:46:45] Step 6000/10000: Current Total Energy = -10.031764-0.000350j
+[2025-02-24 08:48:15] Step 6100/10000: Current Total Energy = -10.033485-0.000835j
+[2025-02-24 08:49:45] Step 6200/10000: Current Total Energy = -10.029430+0.001783j
+[2025-02-24 08:51:15] Step 6300/10000: Current Total Energy = -10.034773+0.000506j
+[2025-02-24 08:52:46] Step 6400/10000: Current Total Energy = -10.033870-0.000280j
+[2025-02-24 08:54:16] Step 6500/10000: Current Total Energy = -10.031512+0.000505j
+[2025-02-24 08:55:46] Step 6600/10000: Current Total Energy = -10.034281-0.000138j
+[2025-02-24 08:57:16] Step 6700/10000: Current Total Energy = -10.030410-0.000861j
+[2025-02-24 08:58:46] Step 6800/10000: Current Total Energy = -10.031898-0.000268j
+[2025-02-24 09:00:17] Step 6900/10000: Current Total Energy = -10.033426+0.002835j
+[2025-02-24 09:01:47] Step 7000/10000: Current Total Energy = -10.034057+0.000249j
+[2025-02-24 09:03:17] Step 7100/10000: Current Total Energy = -10.034036+0.000152j
+[2025-02-24 09:04:47] Step 7200/10000: Current Total Energy = -10.033899-0.000330j
+[2025-02-24 09:06:18] Step 7300/10000: Current Total Energy = -10.034049+0.000014j
+[2025-02-24 09:07:48] Step 7400/10000: Current Total Energy = -10.032974-0.000536j
+[2025-02-24 09:09:18] Step 7500/10000: Current Total Energy = -10.033996-0.001903j
+[2025-02-24 09:10:48] Step 7600/10000: Current Total Energy = -10.033366+0.000134j
+[2025-02-24 09:12:19] Step 7700/10000: Current Total Energy = -10.033530-0.000152j
+[2025-02-24 09:13:49] Step 7800/10000: Current Total Energy = -10.034126-0.000011j
+[2025-02-24 09:15:19] Step 7900/10000: Current Total Energy = -10.034052-0.000536j
+[2025-02-24 09:16:49] Step 8000/10000: Current Total Energy = -10.033034+0.000395j
+[2025-02-24 09:18:19] Step 8100/10000: Current Total Energy = -10.031745-0.000067j
+[2025-02-24 09:19:50] Step 8200/10000: Current Total Energy = -10.033460-0.000800j
+[2025-02-24 09:21:20] Step 8300/10000: Current Total Energy = -10.034070-0.000317j
+[2025-02-24 09:22:50] Step 8400/10000: Current Total Energy = -10.034202+0.000132j
+[2025-02-24 09:24:20] Step 8500/10000: Current Total Energy = -10.034142-0.000560j
+[2025-02-24 09:25:51] Step 8600/10000: Current Total Energy = -10.033760-0.000586j
+[2025-02-24 09:27:21] Step 8700/10000: Current Total Energy = -10.034135+0.000231j
+[2025-02-24 09:28:51] Step 8800/10000: Current Total Energy = -10.032283-0.000974j
+[2025-02-24 09:30:21] Step 8900/10000: Current Total Energy = -10.062832-0.000903j
+[2025-02-24 09:31:51] Step 9000/10000: Current Total Energy = -10.034243+0.000181j
+[2025-02-24 09:33:22] Step 9100/10000: Current Total Energy = -10.034562-0.000119j
+[2025-02-24 09:34:52] Step 9200/10000: Current Total Energy = -10.034156-0.000298j
+[2025-02-24 09:36:22] Step 9300/10000: Current Total Energy = -10.034802-0.000322j
+[2025-02-24 09:37:52] Step 9400/10000: Current Total Energy = -10.032826+0.000484j
+[2025-02-24 09:39:22] Step 9500/10000: Current Total Energy = -10.034455+0.000256j
+[2025-02-24 09:40:52] Step 9600/10000: Current Total Energy = -10.034255-0.000876j
+[2025-02-24 09:42:22] Step 9700/10000: Current Total Energy = -10.033876+0.000218j
+[2025-02-24 09:43:53] Step 9800/10000: Current Total Energy = -10.033786-0.000342j
+[2025-02-24 09:45:23] Step 9900/10000: Current Total Energy = -10.034462-0.000196j
+[2025-02-24 09:46:52] ==================================================
+[2025-02-24 09:46:52] Optimization completed for L=4, J2=0.8
+[2025-02-24 09:46:52] Total runtime = 9022.36 seconds
+[2025-02-24 09:46:52] ==================================================

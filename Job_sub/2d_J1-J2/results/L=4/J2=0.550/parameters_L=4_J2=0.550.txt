@@ -1,0 +1,27 @@
+{
+    "seed": 0,
+    "diag_shift": 0.001,
+    "eta": 0.005,
+    "N_opt": 10000,
+    "N_samples": 4096,
+    "N_discard": 0,
+    "f": 6,
+    "heads": 12,
+    "d_model": 72,
+    "patch_size": 4,
+    "n_layers": 1,
+    "L": 4,
+    "N": 16,
+    "J2": 0.55,
+    "lattice_extent": [
+        4,
+        4
+    ],
+    "lattice_pbc": [
+        true,
+        true
+    ],
+    "max_neighbor_order": 2,
+    "hilbert_spin": 0.5,
+    "total_sz": 0
+}

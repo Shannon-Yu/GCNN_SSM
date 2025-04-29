@@ -1,0 +1,50 @@
+#!/bin/sh
+
+#PBS -q normal
+#PBS -l select=1:ngpus=1
+#PBS -l walltime=12:00:00
+#PBS -P personal-s240076
+#PBS -N vit-J1-J2-L8
+#PBS -j oe
+
+# 进入工作目录
+cd $PBS_O_WORKDIR || exit $?
+
+# 记录作业开始时间和节点信息
+echo "Job started at: $(date)"
+echo "Running on node: $(hostname)"
+echo "GPU information:"
+nvidia-smi
+
+# 加载必要的模块
+module load singularity
+
+# 从config.py读取参数列表
+echo "Reading parameters from config.py..."
+L_VALUES=$(singularity exec --nv -B /scratch,/app \
+    /home/users/ntu/s240076/Repositories/Jupyter_server/config/netket.sif \
+    python -c "from config import SystemConfig; print(' '.join(map(str, SystemConfig.L_LIST)))")
+J2_VALUES=$(singularity exec --nv -B /scratch,/app \
+    /home/users/ntu/s240076/Repositories/Jupyter_server/config/netket.sif \
+    python -c "from config import SystemConfig; print(' '.join(map(str, SystemConfig.J2_LIST)))")
+
+echo "Will process the following combinations:"
+echo "L values: $L_VALUES"
+echo "J2 values: $J2_VALUES"
+
+# 遍历所有L和J2的组合
+for L in $L_VALUES; do
+    for J2 in $J2_VALUES; do
+        echo "Starting calculation for L=$L, J2=$J2 at: $(date)"
+        
+        # 使用 Singularity 容器执行 Python 任务
+        singularity exec --nv -B /scratch,/app \
+            /home/users/ntu/s240076/Repositories/Jupyter_server/config/netket.sif \
+            python main.py $L $J2
+            
+        echo "Completed calculation for L=$L, J2=$J2 at: $(date)"
+    done
+done
+
+# 记录作业结束时间
+echo "Job finished at: $(date)"
