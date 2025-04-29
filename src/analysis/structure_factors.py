@@ -34,6 +34,11 @@ def calculate_spin_structure_factor(vqs, lattice, L, save_dir, log_file=None):
         sy_i = nk.operator.spin.sigmay(vqs.hilbert, i) * 0.5
         sz_i = nk.operator.spin.sigmaz(vqs.hilbert, i) * 0.5
 
+        # 将操作符转换为JAX操作符
+        sx_i = sx_i.to_jax_operator()
+        sy_i = sy_i.to_jax_operator()
+        sz_i = sz_i.to_jax_operator()
+
         # 每处理10个位点记录一次进度
         if i % 10 == 0:
             log_message(log_file, f"处理位点 {i}/{N}...")
@@ -46,6 +51,11 @@ def calculate_spin_structure_factor(vqs, lattice, L, save_dir, log_file=None):
             sx_j = nk.operator.spin.sigmax(vqs.hilbert, j) * 0.5
             sy_j = nk.operator.spin.sigmay(vqs.hilbert, j) * 0.5
             sz_j = nk.operator.spin.sigmaz(vqs.hilbert, j) * 0.5
+
+            # 将操作符转换为JAX操作符
+            sx_j = sx_j.to_jax_operator()
+            sy_j = sy_j.to_jax_operator()
+            sz_j = sz_j.to_jax_operator()
 
             # 分别计算xx, yy, zz相关函数并获取实际值
             corr_xx_op = sx_i @ sx_j
@@ -195,12 +205,19 @@ def construct_plaquette_permutation(hilbert, plaq_sites):
            nk.operator.spin.sigmay(hilbert, d) * 0.5,
            nk.operator.spin.sigmaz(hilbert, d) * 0.5]
 
+    # 将所有操作符转换为JAX操作符
+    S_a = [op.to_jax_operator() for op in S_a]
+    S_b = [op.to_jax_operator() for op in S_b]
+    S_c = [op.to_jax_operator() for op in S_c]
+    S_d = [op.to_jax_operator() for op in S_d]
+
     # 构建交换算符 S_{i,j} = (1/2 + 2S_i·S_j)
     def exchange_op(S_i, S_j):
         # 计算 S_i·S_j = S^x_i·S^x_j + S^y_i·S^y_j + S^z_i·S^z_j
         SiSj = S_i[0] @ S_j[0] + S_i[1] @ S_j[1] + S_i[2] @ S_j[2]
         # 返回 1/2 + 2(S_i·S_j)
-        return nk.operator.LocalOperator(hilbert, constant=0.5) + 2.0 * SiSj
+        constant_op = nk.operator.LocalOperator(hilbert, constant=0.5).to_jax_operator()
+        return constant_op + 2.0 * SiSj
 
     # 构建正向循环置换 P = S_{1,2} S_{2,3} S_{3,4}
     S_ab = exchange_op(S_a, S_b)
@@ -230,6 +247,15 @@ def compute_spin_dot_product(hilbert, site_i, site_j):
     sx_j = nk.operator.spin.sigmax(hilbert, site_j) * 0.5
     sy_j = nk.operator.spin.sigmay(hilbert, site_j) * 0.5
     sz_j = nk.operator.spin.sigmaz(hilbert, site_j) * 0.5
+
+    # 将操作符转换为JAX操作符
+    sx_i = sx_i.to_jax_operator()
+    sy_i = sy_i.to_jax_operator()
+    sz_i = sz_i.to_jax_operator()
+
+    sx_j = sx_j.to_jax_operator()
+    sy_j = sy_j.to_jax_operator()
+    sz_j = sz_j.to_jax_operator()
 
     # 计算 S_i·S_j = S^x_i·S^x_j + S^y_i·S^y_j + S^z_i·S^z_j
     return sx_i @ sx_j + sy_i @ sy_j + sz_i @ sz_j
