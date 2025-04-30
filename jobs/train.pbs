@@ -5,7 +5,7 @@
 #PBS -l walltime=22:00:00
 #PBS -P 12004256
 ###PBS -P personal-s240076
-#PBS -N vit-Shastry
+#PBS -N GCNN-Shastry
 #PBS -j oe
 
 # 进入工作目录
@@ -42,7 +42,7 @@ echo "J2 values: $J2_VALUES"
 echo "J1 values: $J1_VALUES"
 
 # 并行任务最大数量
-max_tasks=2
+max_tasks=3
 current_tasks=0
 
 for J2 in $J2_VALUES; do
