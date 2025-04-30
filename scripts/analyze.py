@@ -59,7 +59,6 @@ def main(args=None):
     analyze_log = os.path.join(analysis_dir, f"analyze_L={L}_J2={J2:.2f}_J1={J1:.2f}.log")
     log_message(analyze_log, "="*80)
     log_message(analyze_log, f"开始分析量子态: L={L}, J2={J2:.2f}, J1={J1:.2f}")
-    log_message(analyze_log, "="*80)
 
     # 不再需要单独的plots目录，图像将保存在各自的目录中
 
@@ -71,10 +70,11 @@ def main(args=None):
             return
 
         # 加载量子态
+        log_message(analyze_log, "-"*80)
         log_message(analyze_log, f"加载量子态: L={L}, J2={J2:.2f}, J1={J1:.2f}")
         vqs, lattice, _, _ = load_quantum_state(
             model_file, L, J2, J1,
-            n_samples=2**14,  # 增加采样数量以获得更准确的结果
+            n_samples=2**20,  # 增加采样数量以获得更准确的结果
             n_discard=50
         )
 

@@ -30,7 +30,7 @@ def calculate_spin_structure_factor(vqs, lattice, L, save_dir, log_file=None):
         except:
             # 如果提取失败，使用默认值
             pass
-    log_message(log_file, "-"*80)
+    log_message(log_file, "="*80)
     log_message(log_file, "开始计算自旋结构因子...")
 
     N = lattice.n_nodes
@@ -156,7 +156,7 @@ def calculate_plaquette_structure_factor(vqs, lattice, L, save_dir, log_file=Non
         except:
             # 如果提取失败，使用默认值
             pass
-    log_message(log_file, "-"*80)
+    log_message(log_file, "="*80)
     log_message(log_file, "开始计算简盘结构因子...")
 
     # 创建k点网格
@@ -377,7 +377,7 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
         except:
             # 如果提取失败，使用默认值
             pass
-    log_message(log_file, "-"*80)
+    log_message(log_file, "="*80)
     log_message(log_file, "开始计算二聚体结构因子...")
 
     # 创建k点网格
