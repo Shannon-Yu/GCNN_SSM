@@ -29,7 +29,7 @@ ls -la configs/
 # 直接设置参数值，避免使用singularity读取配置
 L_VALUE=5
 J2_VALUES="0.05"
-J1_VALUES="0.00"
+J1_VALUES="0.06 0.07 0.08 0.09 0.10"
 
 echo "手动设置参数值:"
 echo "L_VALUE = $L_VALUE"
@@ -40,7 +40,6 @@ echo "Processing the following parameter combinations:"
 echo "L value: $L_VALUE"
 echo "J2 values: $J2_VALUES"
 echo "J1 values: $J1_VALUES"
-echo "Fixed J2 = 1.0"
 
 # 并行任务最大数量
 max_tasks=2
