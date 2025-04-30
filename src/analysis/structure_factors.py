@@ -530,9 +530,17 @@ def calculate_correlation_ratios(k_points, structure_factor, save_dir, type_name
     return ratio, (k_max_x, k_max_y)
 
 
-def calculate_af_order_parameter(k_points, spin_sf, L, save_dir, log_file=None):
+def calculate_af_order_parameter(k_points, spin_sf, L, save_dir, log_file=None, spin_data=None):
     """
     计算反铁磁序参数 (AF Order Parameter)：m^2(L) = S(π, π)/L^2
+
+    参数:
+    - k_points: k点网格
+    - spin_sf: 自旋结构因子
+    - L: 系统大小
+    - save_dir: 保存目录
+    - log_file: 日志文件
+    - spin_data: 自旋相关函数数据列表（可选，保持与其他序参量函数接口一致）
     """
     if log_file is None:
         # 默认日志文件将由调用者提供
