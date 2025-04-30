@@ -29,7 +29,7 @@ ls -la configs/
 # 直接设置参数值，避免使用singularity读取配置
 L_VALUE=5
 J2_VALUES="0.05"
-J1_VALUES="0.06 0.07 0.08 0.09 0.10"
+J1_VALUES="0.06 0.09 0.10"
 
 echo "手动设置参数值:"
 echo "L_VALUE = $L_VALUE"
