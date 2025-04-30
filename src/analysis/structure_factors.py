@@ -17,8 +17,21 @@ def calculate_spin_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     if log_file is None:
         # 默认日志文件将由调用者提供
         log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2=0.05_J1=0.05.log")
+        # 尝试从目录名称中提取J2和J1值
+        try:
+            dir_parts = save_dir.split('/')
+            for part in dir_parts:
+                if part.startswith('J2='):
+                    J2_str = part.split('=')[1]
+                    if 'J1=' in dir_parts[dir_parts.index(part)+1]:
+                        J1_str = dir_parts[dir_parts.index(part)+1].split('=')[1]
+                        log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2={J2_str}_J1={J1_str}.log")
+                        break
+        except:
+            # 如果提取失败，使用默认值
+            pass
     log_message(log_file, "-"*80)
-    log_message(log_file, "开始计算自旋结构因子（优化版本）...")
+    log_message(log_file, "开始计算自旋结构因子...")
 
     N = lattice.n_nodes
 
@@ -130,8 +143,21 @@ def calculate_plaquette_structure_factor(vqs, lattice, L, save_dir, log_file=Non
     if log_file is None:
         # 默认日志文件将由调用者提供
         log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2=0.05_J1=0.05.log")
+        # 尝试从目录名称中提取J2和J1值
+        try:
+            dir_parts = save_dir.split('/')
+            for part in dir_parts:
+                if part.startswith('J2='):
+                    J2_str = part.split('=')[1]
+                    if 'J1=' in dir_parts[dir_parts.index(part)+1]:
+                        J1_str = dir_parts[dir_parts.index(part)+1].split('=')[1]
+                        log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2={J2_str}_J1={J1_str}.log")
+                        break
+        except:
+            # 如果提取失败，使用默认值
+            pass
     log_message(log_file, "-"*80)
-    log_message(log_file, "开始计算简盘结构因子（优化版本）...")
+    log_message(log_file, "开始计算简盘结构因子...")
 
     # 创建k点网格
     k_points, _, _ = create_k_mesh(30)
@@ -338,8 +364,21 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     if log_file is None:
         # 默认日志文件将由调用者提供
         log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2=0.05_J1=0.05.log")
+        # 尝试从目录名称中提取J2和J1值
+        try:
+            dir_parts = save_dir.split('/')
+            for part in dir_parts:
+                if part.startswith('J2='):
+                    J2_str = part.split('=')[1]
+                    if 'J1=' in dir_parts[dir_parts.index(part)+1]:
+                        J1_str = dir_parts[dir_parts.index(part)+1].split('=')[1]
+                        log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2={J2_str}_J1={J1_str}.log")
+                        break
+        except:
+            # 如果提取失败，使用默认值
+            pass
     log_message(log_file, "-"*80)
-    log_message(log_file, "开始计算二聚体结构因子（优化版本）...")
+    log_message(log_file, "开始计算二聚体结构因子...")
 
     # 创建k点网格
     k_points, _, _ = create_k_mesh(30)
@@ -478,6 +517,21 @@ def calculate_correlation_ratios(k_points, structure_factor, save_dir, type_name
     if log_file is None:
         # 默认日志文件将由调用者提供
         log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L=4_J2=0.05_J1=0.05.log")
+        # 尝试从目录名称中提取L、J2和J1值
+        try:
+            dir_parts = save_dir.split('/')
+            for part in dir_parts:
+                if part.startswith('L='):
+                    L_str = part.split('=')[1]
+                    if 'J2=' in dir_parts[dir_parts.index(part)+1]:
+                        J2_str = dir_parts[dir_parts.index(part)+1].split('=')[1]
+                        if 'J1=' in dir_parts[dir_parts.index(part)+2]:
+                            J1_str = dir_parts[dir_parts.index(part)+2].split('=')[1]
+                            log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L_str}_J2={J2_str}_J1={J1_str}.log")
+                            break
+        except:
+            # 如果提取失败，使用默认值
+            pass
     # 找到结构因子的最大值位置
     max_idx = np.unravel_index(np.argmax(structure_factor), structure_factor.shape)
     k_max_x = k_points[max_idx[1]]
@@ -540,11 +594,24 @@ def calculate_af_order_parameter(k_points, spin_sf, L, save_dir, log_file=None, 
     - L: 系统大小
     - save_dir: 保存目录
     - log_file: 日志文件
-    - spin_data: 自旋相关函数数据列表（可选，保持与其他序参量函数接口一致）
+    - spin_data: 自旋相关函数数据列表（可选，保持与其他序参量函数接口一致，但在此函数中未使用）
     """
     if log_file is None:
         # 默认日志文件将由调用者提供
         log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2=0.05_J1=0.05.log")
+        # 尝试从目录名称中提取J2和J1值
+        try:
+            dir_parts = save_dir.split('/')
+            for part in dir_parts:
+                if part.startswith('J2='):
+                    J2_str = part.split('=')[1]
+                    if 'J1=' in dir_parts[dir_parts.index(part)+1]:
+                        J1_str = dir_parts[dir_parts.index(part)+1].split('=')[1]
+                        log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2={J2_str}_J1={J1_str}.log")
+                        break
+        except:
+            # 如果提取失败，使用默认值
+            pass
 
     log_message(log_file, "-"*80)
     log_message(log_file, "计算反铁磁序参数...")
@@ -588,6 +655,19 @@ def calculate_plaquette_order_parameter(plaquette_data, L, save_dir, log_file=No
     if log_file is None:
         # 默认日志文件将由调用者提供
         log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2=0.05_J1=0.05.log")
+        # 尝试从目录名称中提取J2和J1值
+        try:
+            dir_parts = save_dir.split('/')
+            for part in dir_parts:
+                if part.startswith('J2='):
+                    J2_str = part.split('=')[1]
+                    if 'J1=' in dir_parts[dir_parts.index(part)+1]:
+                        J1_str = dir_parts[dir_parts.index(part)+1].split('=')[1]
+                        log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2={J2_str}_J1={J1_str}.log")
+                        break
+        except:
+            # 如果提取失败，使用默认值
+            pass
 
     log_message(log_file, "-"*80)
     log_message(log_file, "计算简盘序参量...")
@@ -658,6 +738,19 @@ def calculate_dimer_order_parameter(dimer_data, L, save_dir, log_file=None):
     if log_file is None:
         # 默认日志文件将由调用者提供
         log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2=0.05_J1=0.05.log")
+        # 尝试从目录名称中提取J2和J1值
+        try:
+            dir_parts = save_dir.split('/')
+            for part in dir_parts:
+                if part.startswith('J2='):
+                    J2_str = part.split('=')[1]
+                    if 'J1=' in dir_parts[dir_parts.index(part)+1]:
+                        J1_str = dir_parts[dir_parts.index(part)+1].split('=')[1]
+                        log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2={J2_str}_J1={J1_str}.log")
+                        break
+        except:
+            # 如果提取失败，使用默认值
+            pass
 
     log_message(log_file, "-"*80)
     log_message(log_file, "计算二聚体序参量...")

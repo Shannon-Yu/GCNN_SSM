@@ -143,7 +143,7 @@ def main():
     J2 = float(sys.argv[2])
     J1 = float(sys.argv[3])
 
-    print("\n开始 ViT-NQS 模拟")
+    print("\n开始 GCNN 模拟")
     print(f"Sharding 启用状态: {nk.config.netket_experimental_sharding}")
     print(f"可用设备: {jax.devices()}")
     print(f"GPU 信息:")
