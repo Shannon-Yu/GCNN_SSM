@@ -51,7 +51,7 @@ PARAM_SETS=(
 )
 
 # 并行任务最大数量
-max_tasks=4
+max_tasks=5
 current_tasks=0
 
 # 遍历所有参数组合并运行分析
