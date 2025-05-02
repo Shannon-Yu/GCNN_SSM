@@ -1,9 +1,13 @@
 import numpy as np
 import netket as nk
 import os
+import jax
+import jax.numpy as jnp
+from functools import partial
+from jax import vmap
 from src.utils.logging import log_message
 
-def create_k_mesh(n_points=30):
+def create_k_mesh(n_points=20):
     """创建k点网格"""
     k_points = np.linspace(-np.pi, np.pi, n_points)
     kx, ky = np.meshgrid(k_points, k_points)
@@ -36,7 +40,7 @@ def calculate_spin_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     N = lattice.n_nodes
 
     # 创建k点网格
-    k_points, _, _ = create_k_mesh(30)
+    k_points, _, _ = create_k_mesh(20)
     n_k = len(k_points)
 
     # 初始化结构因子
@@ -72,34 +76,54 @@ def calculate_spin_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     # 使用NetKet的sharding功能并行计算相关函数
     log_message(log_file, "计算自旋相关函数...")
 
+    # 定义一个函数来计算一批位点的相关函数
+    def compute_correlations_batch(i_batch):
+        batch_correlations = []
+        for i in i_batch:
+            sx_i, sy_i, sz_i = spin_ops[i]
+
+            # 预先构建所有j的操作符
+            ops_list = []
+            for j in range(N):
+                sx_j, sy_j, sz_j = spin_ops[j]
+                # 构建自旋点积操作符
+                spin_dot_op = sx_i @ sx_j + sy_i @ sy_j + sz_i @ sz_j
+                ops_list.append(spin_dot_op)
+
+            # 逐个计算操作符的期望值
+            corr_values = []
+            for op in ops_list:
+                # 计算单个操作符的期望值
+                corr = vqs.expect(op)
+                corr_values.append(corr)
+
+            # 保存结果
+            for j, corr in enumerate(corr_values):
+                r_ij = r_vectors[i, j]
+                batch_correlations.append({
+                    'i': i, 'j': j,
+                    'r_x': r_ij[0], 'r_y': r_ij[1],
+                    'corr': corr.mean.real
+                })
+        return batch_correlations
+
     # 分批处理以减少内存使用
-    batch_size = 10  # 每批处理的位点数
+    batch_size = N//2  # 每批处理的位点数，设为总数的一半
+    all_correlations = []
+
     for batch_start in range(0, N, batch_size):
         batch_end = min(batch_start + batch_size, N)
         log_message(log_file, f"处理位点 {batch_start}-{batch_end-1}/{N}...")
 
-        for i in range(batch_start, batch_end):
-            sx_i, sy_i, sz_i = spin_ops[i]
+        # 创建当前批次的位点索引
+        i_batch = list(range(batch_start, batch_end))
 
-            for j in range(N):
-                # 计算位移向量
-                r_ij = r_vectors[i, j]
+        # 计算当前批次的相关函数
+        batch_correlations = compute_correlations_batch(i_batch)
+        all_correlations.extend(batch_correlations)
 
-                # 获取j位点的自旋操作符
-                sx_j, sy_j, sz_j = spin_ops[j]
-
-                # 构建自旋点积操作符
-                spin_dot_op = sx_i @ sx_j + sy_i @ sy_j + sz_i @ sz_j
-
-                # 计算期望值
-                corr_ij = vqs.expect(spin_dot_op).mean.real
-
-                # 保存相关函数数据
-                correlation_data.append({
-                    'i': i, 'j': j,
-                    'r_x': r_ij[0], 'r_y': r_ij[1],
-                    'corr': corr_ij
-                })
+    # 将所有结果合并
+    correlation_data = all_correlations
 
     # 向量化计算傅里叶变换
     log_message(log_file, "计算傅里叶变换...")
@@ -112,16 +136,32 @@ def calculate_spin_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     kx_grid, ky_grid = np.meshgrid(k_points, k_points)
     k_grid = np.stack([kx_grid.flatten(), ky_grid.flatten()], axis=1)
 
-    # 向量化计算傅里叶变换
-    for idx, k_vec in enumerate(k_grid):
+    # 使用JAX的向量化功能计算傅里叶变换
+    log_message(log_file, "使用JAX向量化计算傅里叶变换...")
+
+    # 将数据转换为JAX数组
+    r_values_jax = jnp.array(r_values)
+    corr_values_jax = jnp.array(corr_values)
+    k_grid_jax = jnp.array(k_grid)
+
+    # 定义计算单个k点的结构因子的函数
+    def compute_sf_for_k(k_vec):
         # 计算所有r的相位因子
-        phases = np.exp(1j * np.dot(r_values, k_vec))
+        phases = jnp.exp(1j * jnp.dot(r_values_jax, k_vec))
         # 计算结构因子
-        sf_value = np.sum(corr_values * phases)
-        # 存储结果
-        kx_idx = idx % n_k
-        ky_idx = idx // n_k
-        spin_sf[ky_idx, kx_idx] = sf_value
+        return jnp.sum(corr_values_jax * phases)
+
+    # 向量化函数以并行计算所有k点
+    compute_sf_vmap = vmap(compute_sf_for_k)
+
+    # 并行计算所有k点的结构因子
+    sf_values = compute_sf_vmap(k_grid_jax)
+
+    # 将结果重塑为2D网格
+    sf_values_2d = sf_values.reshape(n_k, n_k)
+
+    # 存储结果
+    spin_sf = np.array(sf_values_2d)
 
     # 归一化
     spin_sf /= N
@@ -160,7 +200,7 @@ def calculate_plaquette_structure_factor(vqs, lattice, L, save_dir, log_file=Non
     log_message(log_file, "开始计算简盘结构因子...")
 
     # 创建k点网格
-    k_points, _, _ = create_k_mesh(30)
+    k_points, _, _ = create_k_mesh(20)
     n_k = len(k_points)
 
     # 初始化简盘结构因子
@@ -209,36 +249,55 @@ def calculate_plaquette_structure_factor(vqs, lattice, L, save_dir, log_file=Non
 
     # 计算简盘-简盘相关函数
     log_message(log_file, "计算简盘相关函数...")
-    plaquette_data = []
+
+    # 定义一个函数来计算一批简盘的相关函数
+    def compute_plaquette_correlations_batch(i_batch):
+        batch_correlations = []
+        for i in i_batch:
+            op_i = plaquette_ops[i]
+
+            # 预先构建所有j的操作符
+            ops_list = []
+            for j in range(n_plaq):
+                op_j = plaquette_ops[j]
+                # 构建组合操作符
+                combined_op = op_i @ op_j
+                ops_list.append(combined_op)
+
+            # 逐个计算操作符的期望值
+            corr_values = []
+            for op in ops_list:
+                # 计算单个操作符的期望值
+                corr = vqs.expect(op)
+                corr_values.append(corr)
+
+            # 保存结果
+            for j, corr in enumerate(corr_values):
+                r_ij = r_vectors[i, j]
+                batch_correlations.append({
+                    'plaq_i': i, 'plaq_j': j,
+                    'r_x': r_ij[0], 'r_y': r_ij[1],
+                    'corr': corr.mean.real / 4.0  # 除以4得到正确的归一化
+                })
+        return batch_correlations
 
     # 分批处理以减少内存使用
-    batch_size = 5  # 每批处理的简盘数
+    batch_size = n_plaq//2  # 每批处理的简盘数，设为总数的一半
+    all_correlations = []
+
     for batch_start in range(0, n_plaq, batch_size):
         batch_end = min(batch_start + batch_size, n_plaq)
         log_message(log_file, f"处理简盘 {batch_start}-{batch_end-1}/{n_plaq}...")
 
-        for i in range(batch_start, batch_end):
-            op_i = plaquette_ops[i]
+        # 创建当前批次的简盘索引
+        i_batch = list(range(batch_start, batch_end))
 
-            for j in range(n_plaq):
-                # 获取位移向量
-                r_ij = r_vectors[i, j]
+        # 计算当前批次的相关函数
+        batch_correlations = compute_plaquette_correlations_batch(i_batch)
+        all_correlations.extend(batch_correlations)
 
-                # 获取j简盘的操作符
-                op_j = plaquette_ops[j]
-
-                # 构建组合操作符
-                combined_op = op_i @ op_j
-
-                # 计算期望值
-                corr_ij = vqs.expect(combined_op).mean.real / 4.0  # 除以4得到正确的归一化
-
-                # 保存相关函数数据
-                plaquette_data.append({
-                    'plaq_i': i, 'plaq_j': j,
-                    'r_x': r_ij[0], 'r_y': r_ij[1],
-                    'corr': corr_ij
-                })
+    # 将所有结果合并
+    plaquette_data = all_correlations
 
     # 向量化计算傅里叶变换
     log_message(log_file, "计算傅里叶变换...")
@@ -251,16 +310,32 @@ def calculate_plaquette_structure_factor(vqs, lattice, L, save_dir, log_file=Non
     kx_grid, ky_grid = np.meshgrid(k_points, k_points)
     k_grid = np.stack([kx_grid.flatten(), ky_grid.flatten()], axis=1)
 
-    # 向量化计算傅里叶变换
-    for idx, k_vec in enumerate(k_grid):
+    # 使用JAX的向量化功能计算傅里叶变换
+    log_message(log_file, "使用JAX向量化计算傅里叶变换...")
+
+    # 将数据转换为JAX数组
+    r_values_jax = jnp.array(r_values)
+    corr_values_jax = jnp.array(corr_values)
+    k_grid_jax = jnp.array(k_grid)
+
+    # 定义计算单个k点的结构因子的函数
+    def compute_sf_for_k(k_vec):
         # 计算所有r的相位因子
-        phases = np.exp(1j * np.dot(r_values, k_vec))
+        phases = jnp.exp(1j * jnp.dot(r_values_jax, k_vec))
         # 计算结构因子
-        sf_value = np.sum(corr_values * phases)
-        # 存储结果
-        kx_idx = idx % n_k
-        ky_idx = idx // n_k
-        plaq_sf[ky_idx, kx_idx] = sf_value
+        return jnp.sum(corr_values_jax * phases)
+
+    # 向量化函数以并行计算所有k点
+    compute_sf_vmap = vmap(compute_sf_for_k)
+
+    # 并行计算所有k点的结构因子
+    sf_values = compute_sf_vmap(k_grid_jax)
+
+    # 将结果重塑为2D网格
+    sf_values_2d = sf_values.reshape(n_k, n_k)
+
+    # 存储结果
+    plaq_sf = np.array(sf_values_2d)
 
     # 归一化
     plaq_sf /= n_plaq
@@ -332,25 +407,38 @@ def construct_plaquette_permutation(hilbert, plaq_sites):
 
     return P, P_inv
 
-def compute_spin_dot_product(hilbert, site_i, site_j):
-    """计算两个位点间的自旋点积算符 S_i·S_j"""
-    # 构建自旋算符
-    sx_i = nk.operator.spin.sigmax(hilbert, site_i) * 0.5
-    sy_i = nk.operator.spin.sigmay(hilbert, site_i) * 0.5
-    sz_i = nk.operator.spin.sigmaz(hilbert, site_i) * 0.5
+def compute_spin_dot_product(hilbert, site_i, site_j, spin_ops=None):
+    """
+    计算两个位点间的自旋点积算符 S_i·S_j
 
-    sx_j = nk.operator.spin.sigmax(hilbert, site_j) * 0.5
-    sy_j = nk.operator.spin.sigmay(hilbert, site_j) * 0.5
-    sz_j = nk.operator.spin.sigmaz(hilbert, site_j) * 0.5
+    参数:
+    - hilbert: 希尔伯特空间
+    - site_i: 第一个位点索引
+    - site_j: 第二个位点索引
+    - spin_ops: 预计算的自旋操作符列表，如果提供则使用，否则创建新的操作符
+    """
+    if spin_ops is not None:
+        # 使用预计算的操作符
+        sx_i, sy_i, sz_i = spin_ops[site_i]
+        sx_j, sy_j, sz_j = spin_ops[site_j]
+    else:
+        # 构建自旋算符
+        sx_i = nk.operator.spin.sigmax(hilbert, site_i) * 0.5
+        sy_i = nk.operator.spin.sigmay(hilbert, site_i) * 0.5
+        sz_i = nk.operator.spin.sigmaz(hilbert, site_i) * 0.5
 
-    # 将操作符转换为JAX操作符
-    sx_i = sx_i.to_jax_operator()
-    sy_i = sy_i.to_jax_operator()
-    sz_i = sz_i.to_jax_operator()
+        sx_j = nk.operator.spin.sigmax(hilbert, site_j) * 0.5
+        sy_j = nk.operator.spin.sigmay(hilbert, site_j) * 0.5
+        sz_j = nk.operator.spin.sigmaz(hilbert, site_j) * 0.5
 
-    sx_j = sx_j.to_jax_operator()
-    sy_j = sy_j.to_jax_operator()
-    sz_j = sz_j.to_jax_operator()
+        # 将操作符转换为JAX操作符
+        sx_i = sx_i.to_jax_operator()
+        sy_i = sy_i.to_jax_operator()
+        sz_i = sz_i.to_jax_operator()
+
+        sx_j = sx_j.to_jax_operator()
+        sy_j = sy_j.to_jax_operator()
+        sz_j = sz_j.to_jax_operator()
 
     # 计算 S_i·S_j = S^x_i·S^x_j + S^y_i·S^y_j + S^z_i·S^z_j
     return sx_i @ sx_j + sy_i @ sy_j + sz_i @ sz_j
@@ -381,7 +469,7 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     log_message(log_file, "开始计算二聚体结构因子...")
 
     # 创建k点网格
-    k_points, _, _ = create_k_mesh(30)
+    k_points, _, _ = create_k_mesh(20)
     n_k = len(k_points)
 
     # 初始化dimer结构因子
@@ -430,12 +518,27 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     log_message(log_file, "预计算二聚体操作符...")
     dimer_ops = []
 
+    # 预计算所有位点的自旋操作符
+    log_message(log_file, "预计算位点自旋操作符...")
+    spin_ops = []
+    for i in range(lattice.n_nodes):
+        sx_i = nk.operator.spin.sigmax(vqs.hilbert, i) * 0.5
+        sy_i = nk.operator.spin.sigmay(vqs.hilbert, i) * 0.5
+        sz_i = nk.operator.spin.sigmaz(vqs.hilbert, i) * 0.5
+
+        # 将操作符转换为JAX操作符
+        sx_i = sx_i.to_jax_operator()
+        sy_i = sy_i.to_jax_operator()
+        sz_i = sz_i.to_jax_operator()
+
+        spin_ops.append((sx_i, sy_i, sz_i))
+
     for i, (i1, i2) in enumerate(dimers):
         if i % 10 == 0:
             log_message(log_file, f"预计算二聚体操作符 {i}/{n_dimers}...")
 
-        # 创建二聚体算符 S_i1·S_i2
-        S_i1_dot_S_i2 = compute_spin_dot_product(vqs.hilbert, i1, i2)
+        # 创建二聚体算符 S_i1·S_i2，使用预计算的自旋操作符
+        S_i1_dot_S_i2 = compute_spin_dot_product(vqs.hilbert, i1, i2, spin_ops)
         dimer_ops.append(S_i1_dot_S_i2)
 
     # 计算所有二聚体对之间的位移向量
@@ -449,35 +552,57 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
 
     # 计算二聚体-二聚体相关函数
     log_message(log_file, "计算二聚体相关函数...")
-    dimer_data = []
+
+    # 定义一个函数来计算一批二聚体的相关函数
+    def compute_dimer_correlations_batch(i_batch):
+        batch_correlations = []
+        for i in i_batch:
+            op_i = dimer_ops[i]
+            dimer_i = dimers[i]
+
+            # 预先构建所有j的操作符
+            ops_list = []
+            for j in range(n_dimers):
+                op_j = dimer_ops[j]
+                # 构建组合操作符
+                combined_op = op_i @ op_j
+                ops_list.append(combined_op)
+
+            # 逐个计算操作符的期望值
+            corr_values = []
+            for op in ops_list:
+                # 计算单个操作符的期望值
+                corr = vqs.expect(op)
+                corr_values.append(corr)
+
+            # 保存结果
+            for j, corr in enumerate(corr_values):
+                r_ij = r_vectors[i, j]
+                dimer_j = dimers[j]
+                batch_correlations.append({
+                    'dimer_i': dimer_i, 'dimer_j': dimer_j,
+                    'r_x': r_ij[0], 'r_y': r_ij[1],
+                    'corr': corr.mean.real
+                })
+        return batch_correlations
 
     # 分批处理以减少内存使用
-    batch_size = 10  # 每批处理的二聚体数
+    batch_size = n_dimers//2  # 每批处理的二聚体数，设为总数的一半
+    all_correlations = []
+
     for batch_start in range(0, n_dimers, batch_size):
         batch_end = min(batch_start + batch_size, n_dimers)
         log_message(log_file, f"处理二聚体 {batch_start}-{batch_end-1}/{n_dimers}...")
 
-        for i in range(batch_start, batch_end):
-            op_i = dimer_ops[i]
-            dimer_i = dimers[i]
+        # 创建当前批次的二聚体索引
+        i_batch = list(range(batch_start, batch_end))
 
-            for j in range(n_dimers):
-                # 获取位移向量
-                r_ij = r_vectors[i, j]
+        # 计算当前批次的相关函数
+        batch_correlations = compute_dimer_correlations_batch(i_batch)
+        all_correlations.extend(batch_correlations)
 
-                # 获取j二聚体的操作符
-                op_j = dimer_ops[j]
-                dimer_j = dimers[j]
-
-                # 计算二聚体-二聚体相关函数: C_d(r) = <[S(0)·S(0+x)][S(r)·S(r+x)]>
-                dimer_corr = vqs.expect(op_i @ op_j).mean.real
-
-                # 保存数据
-                dimer_data.append({
-                    'dimer_i': dimer_i, 'dimer_j': dimer_j,
-                    'r_x': r_ij[0], 'r_y': r_ij[1],
-                    'corr': dimer_corr
-                })
+    # 将所有结果合并
+    dimer_data = all_correlations
 
     # 向量化计算傅里叶变换
     log_message(log_file, "计算傅里叶变换...")
@@ -490,16 +615,32 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     kx_grid, ky_grid = np.meshgrid(k_points, k_points)
     k_grid = np.stack([kx_grid.flatten(), ky_grid.flatten()], axis=1)
 
-    # 向量化计算傅里叶变换
-    for idx, k_vec in enumerate(k_grid):
+    # 使用JAX的向量化功能计算傅里叶变换
+    log_message(log_file, "使用JAX向量化计算傅里叶变换...")
+
+    # 将数据转换为JAX数组
+    r_values_jax = jnp.array(r_values)
+    corr_values_jax = jnp.array(corr_values)
+    k_grid_jax = jnp.array(k_grid)
+
+    # 定义计算单个k点的结构因子的函数
+    def compute_sf_for_k(k_vec):
         # 计算所有r的相位因子
-        phases = np.exp(1j * np.dot(r_values, k_vec))
+        phases = jnp.exp(1j * jnp.dot(r_values_jax, k_vec))
         # 计算结构因子
-        sf_value = np.sum(corr_values * phases)
-        # 存储结果
-        kx_idx = idx % n_k
-        ky_idx = idx // n_k
-        dimer_sf[ky_idx, kx_idx] = sf_value
+        return jnp.sum(corr_values_jax * phases)
+
+    # 向量化函数以并行计算所有k点
+    compute_sf_vmap = vmap(compute_sf_for_k)
+
+    # 并行计算所有k点的结构因子
+    sf_values = compute_sf_vmap(k_grid_jax)
+
+    # 将结果重塑为2D网格
+    sf_values_2d = sf_values.reshape(n_k, n_k)
+
+    # 存储结果
+    dimer_sf = np.array(sf_values_2d)
 
     # 归一化
     dimer_sf /= n_dimers
@@ -594,8 +735,10 @@ def calculate_af_order_parameter(k_points, spin_sf, L, save_dir, log_file=None, 
     - L: 系统大小
     - save_dir: 保存目录
     - log_file: 日志文件
-    - spin_data: 自旋相关函数数据列表（可选，保持与其他序参量函数接口一致，但在此函数中未使用）
+    - spin_data: 自旋相关函数数据列表（可选，保持与其他序参量函数接口一致）
     """
+    # 忽略未使用的参数
+    _ = spin_data  # 保持接口一致性
     if log_file is None:
         # 默认日志文件将由调用者提供
         log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2=0.05_J1=0.05.log")

@@ -74,8 +74,9 @@ def main(args=None):
         log_message(analyze_log, f"加载量子态: L={L}, J2={J2:.2f}, J1={J1:.2f}")
         vqs, lattice, _, _ = load_quantum_state(
             model_file, L, J2, J1,
-            n_samples=2**20,  # 增加采样数量以获得更准确的结果
-            n_discard=50
+            n_samples=2**18,  # 增加采样数量以获得更准确的结果
+            n_discard=50,
+            chunk_size=2**16
         )
 
         # 创建子目录
