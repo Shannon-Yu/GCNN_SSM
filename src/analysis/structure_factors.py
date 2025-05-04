@@ -7,11 +7,40 @@ from functools import partial
 from jax import vmap
 from src.utils.logging import log_message
 
-def create_k_mesh(n_points=20):
-    """创建k点网格"""
-    k_points = np.linspace(-np.pi, np.pi, n_points)
-    kx, ky = np.meshgrid(k_points, k_points)
-    return k_points, kx, ky
+def create_k_mesh(lattice=None, L=None):
+    """
+    创建k点网格，根据晶格尺寸设置点数
+
+    参数:
+    - lattice: 晶格对象，如果提供则从中获取Lx和Ly
+    - L: 如果未提供晶格，则使用此参数作为Lx=Ly=L
+
+    返回:
+    - k_points_x: x方向的k点
+    - k_points_y: y方向的k点
+    - kx, ky: 网格化的k点
+    """
+    if lattice is not None:
+        # 从晶格获取尺寸
+        Lx, Ly = lattice.extent
+    elif L is not None:
+        # 使用提供的L值
+        Lx, Ly = L, L
+    else:
+        # 默认值
+        Lx, Ly = 20, 20
+
+
+    # 根据晶格尺寸创建k点网格
+    # 每个简盘在水平和垂直方向各占2个点，所以点数是简盘数的2倍
+    n_points_x = int(2 * Lx)
+    n_points_y = int(2 * Ly)
+
+    k_points_x = np.linspace(-np.pi, np.pi, n_points_x)
+    k_points_y = np.linspace(-np.pi, np.pi, n_points_y)
+    kx, ky = np.meshgrid(k_points_x, k_points_y)
+
+    return k_points_x, k_points_y, kx, ky
 
 def calculate_spin_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     """
@@ -40,11 +69,12 @@ def calculate_spin_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     N = lattice.n_nodes
 
     # 创建k点网格
-    k_points, _, _ = create_k_mesh(20)
-    n_k = len(k_points)
+    k_points_x, k_points_y, kx_grid, ky_grid = create_k_mesh(lattice)
+    n_kx = len(k_points_x)
+    n_ky = len(k_points_y)
 
     # 初始化结构因子
-    spin_sf = np.zeros((n_k, n_k), dtype=complex)
+    spin_sf = np.zeros((n_ky, n_kx), dtype=complex)
 
     # 预计算所有位点的自旋操作符
     log_message(log_file, "预计算自旋操作符...")
@@ -132,8 +162,7 @@ def calculate_spin_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     r_values = np.array([[data['r_x'], data['r_y']] for data in correlation_data])
     corr_values = np.array([data['corr'] for data in correlation_data])
 
-    # 创建k网格
-    kx_grid, ky_grid = np.meshgrid(k_points, k_points)
+    # 使用已经创建的k网格
     k_grid = np.stack([kx_grid.flatten(), ky_grid.flatten()], axis=1)
 
     # 使用JAX的向量化功能计算傅里叶变换
@@ -158,7 +187,7 @@ def calculate_spin_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     sf_values = compute_sf_vmap(k_grid_jax)
 
     # 将结果重塑为2D网格
-    sf_values_2d = sf_values.reshape(n_k, n_k)
+    sf_values_2d = sf_values.reshape(n_ky, n_kx)
 
     # 存储结果
     spin_sf = np.array(sf_values_2d)
@@ -169,11 +198,12 @@ def calculate_spin_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     # 保存相关函数数据
     np.save(os.path.join(save_dir, "spin_correlation_data.npy"), correlation_data)
     np.save(os.path.join(save_dir, "spin_structure_factor.npy"), spin_sf.real)
-    np.save(os.path.join(save_dir, "k_points.npy"), k_points)
+    np.save(os.path.join(save_dir, "k_points_x.npy"), k_points_x)
+    np.save(os.path.join(save_dir, "k_points_y.npy"), k_points_y)
 
     log_message(log_file, "自旋结构因子计算完成")
 
-    return k_points, spin_sf.real
+    return (k_points_x, k_points_y), spin_sf.real
 
 def calculate_plaquette_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     """
@@ -200,11 +230,12 @@ def calculate_plaquette_structure_factor(vqs, lattice, L, save_dir, log_file=Non
     log_message(log_file, "开始计算简盘结构因子...")
 
     # 创建k点网格
-    k_points, _, _ = create_k_mesh(20)
-    n_k = len(k_points)
+    k_points_x, k_points_y, kx_grid, ky_grid = create_k_mesh(lattice)
+    n_kx = len(k_points_x)
+    n_ky = len(k_points_y)
 
     # 初始化简盘结构因子
-    plaq_sf = np.zeros((n_k, n_k), dtype=complex)
+    plaq_sf = np.zeros((n_ky, n_kx), dtype=complex)
 
     # 识别所有简盘(每个单元格4个位点形成一个简盘)
     log_message(log_file, "识别所有简盘...")
@@ -306,8 +337,7 @@ def calculate_plaquette_structure_factor(vqs, lattice, L, save_dir, log_file=Non
     r_values = np.array([[data['r_x'], data['r_y']] for data in plaquette_data])
     corr_values = np.array([data['corr'] for data in plaquette_data])
 
-    # 创建k网格
-    kx_grid, ky_grid = np.meshgrid(k_points, k_points)
+    # 使用已经创建的k网格
     k_grid = np.stack([kx_grid.flatten(), ky_grid.flatten()], axis=1)
 
     # 使用JAX的向量化功能计算傅里叶变换
@@ -332,7 +362,7 @@ def calculate_plaquette_structure_factor(vqs, lattice, L, save_dir, log_file=Non
     sf_values = compute_sf_vmap(k_grid_jax)
 
     # 将结果重塑为2D网格
-    sf_values_2d = sf_values.reshape(n_k, n_k)
+    sf_values_2d = sf_values.reshape(n_ky, n_kx)
 
     # 存储结果
     plaq_sf = np.array(sf_values_2d)
@@ -343,10 +373,12 @@ def calculate_plaquette_structure_factor(vqs, lattice, L, save_dir, log_file=Non
     # 保存数据
     np.save(os.path.join(save_dir, "plaquette_correlation_data.npy"), plaquette_data)
     np.save(os.path.join(save_dir, "plaquette_structure_factor.npy"), plaq_sf.real)
+    np.save(os.path.join(save_dir, "k_points_x.npy"), k_points_x)
+    np.save(os.path.join(save_dir, "k_points_y.npy"), k_points_y)
 
     log_message(log_file, "简盘结构因子计算完成")
 
-    return k_points, plaq_sf.real
+    return (k_points_x, k_points_y), plaq_sf.real
 
 def construct_plaquette_permutation(hilbert, plaq_sites):
     """
@@ -469,11 +501,12 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     log_message(log_file, "开始计算二聚体结构因子...")
 
     # 创建k点网格
-    k_points, _, _ = create_k_mesh(20)
-    n_k = len(k_points)
+    k_points_x, k_points_y, kx_grid, ky_grid = create_k_mesh(lattice)
+    n_kx = len(k_points_x)
+    n_ky = len(k_points_y)
 
     # 初始化dimer结构因子
-    dimer_sf = np.zeros((n_k, n_k), dtype=complex)
+    dimer_sf = np.zeros((n_ky, n_kx), dtype=complex)
 
     # 收集所有水平方向的二聚体键
     log_message(log_file, "识别水平方向的二聚体...")
@@ -509,7 +542,7 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     # 如果没有找到水平方向的二聚体，给出警告
     if len(dimers) == 0:
         log_message(log_file, "警告: 没有找到水平方向的二聚体！")
-        return k_points, np.zeros((n_k, n_k))
+        return (k_points_x, k_points_y), np.zeros((n_ky, n_kx))
 
     log_message(log_file, f"找到 {len(dimers)} 个水平方向的二聚体")
     n_dimers = len(dimers)
@@ -611,8 +644,7 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     r_values = np.array([[data['r_x'], data['r_y']] for data in dimer_data])
     corr_values = np.array([data['corr'] for data in dimer_data])
 
-    # 创建k网格
-    kx_grid, ky_grid = np.meshgrid(k_points, k_points)
+    # 使用已经创建的k网格
     k_grid = np.stack([kx_grid.flatten(), ky_grid.flatten()], axis=1)
 
     # 使用JAX的向量化功能计算傅里叶变换
@@ -637,7 +669,7 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     sf_values = compute_sf_vmap(k_grid_jax)
 
     # 将结果重塑为2D网格
-    sf_values_2d = sf_values.reshape(n_k, n_k)
+    sf_values_2d = sf_values.reshape(n_ky, n_kx)
 
     # 存储结果
     dimer_sf = np.array(sf_values_2d)
@@ -648,59 +680,83 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     # 保存数据
     np.save(os.path.join(save_dir, "dimer_correlation_data.npy"), dimer_data)
     np.save(os.path.join(save_dir, "dimer_structure_factor.npy"), dimer_sf.real)
+    np.save(os.path.join(save_dir, "k_points_x.npy"), k_points_x)
+    np.save(os.path.join(save_dir, "k_points_y.npy"), k_points_y)
 
     log_message(log_file, "二聚体结构因子计算完成")
 
-    return k_points, dimer_sf.real
+    return (k_points_x, k_points_y), dimer_sf.real
 
-def calculate_correlation_ratios(k_points, structure_factor, save_dir, type_name, log_file=None):
-    """计算相关比率 R = 1 - S(k+δk)/S(k)"""
+def calculate_correlation_ratios(k_points_tuple, structure_factor, save_dir, type_name, log_file=None):
+    """
+    计算相关比率 R = 1 - S(k+δk)/S(k)，其中δk = 2π/L
+
+    参数:
+    - k_points_tuple: 包含k_points_x和k_points_y的元组
+    - structure_factor: 结构因子数据
+    - save_dir: 保存目录
+    - type_name: 结构因子类型名称
+    - log_file: 日志文件
+    """
+    # 解包k点
+    k_points_x, k_points_y = k_points_tuple
+
+    # 从目录名称中提取L值
+    L = None
+    try:
+        dir_parts = save_dir.split('/')
+        for part in dir_parts:
+            if part.startswith('L='):
+                L = int(part.split('=')[1])
+                break
+    except:
+        # 如果提取失败，使用默认值
+        L = 4
+
     if log_file is None:
         # 默认日志文件将由调用者提供
-        log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L=4_J2=0.05_J1=0.05.log")
-        # 尝试从目录名称中提取L、J2和J1值
+        log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2=0.05_J1=0.05.log")
+        # 尝试从目录名称中提取J2和J1值
         try:
             dir_parts = save_dir.split('/')
             for part in dir_parts:
-                if part.startswith('L='):
-                    L_str = part.split('=')[1]
-                    if 'J2=' in dir_parts[dir_parts.index(part)+1]:
-                        J2_str = dir_parts[dir_parts.index(part)+1].split('=')[1]
-                        if 'J1=' in dir_parts[dir_parts.index(part)+2]:
-                            J1_str = dir_parts[dir_parts.index(part)+2].split('=')[1]
-                            log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L_str}_J2={J2_str}_J1={J1_str}.log")
-                            break
+                if part.startswith('J2='):
+                    J2_str = part.split('=')[1]
+                    if 'J1=' in dir_parts[dir_parts.index(part)+1]:
+                        J1_str = dir_parts[dir_parts.index(part)+1].split('=')[1]
+                        log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2={J2_str}_J1={J1_str}.log")
+                        break
         except:
             # 如果提取失败，使用默认值
             pass
+
     # 找到结构因子的最大值位置
     max_idx = np.unravel_index(np.argmax(structure_factor), structure_factor.shape)
-    k_max_x = k_points[max_idx[1]]
-    k_max_y = k_points[max_idx[0]]
+    k_max_x = k_points_x[max_idx[1]]
+    k_max_y = k_points_y[max_idx[0]]
     S_max = structure_factor[max_idx]
 
-    # 寻找 k+δk 的位置
-    # 近似δk (不直接使用，仅作为注释说明)
+    # 计算δk = 2π/L，L是简盘数量，每个简盘在水平和垂直方向各占2个点
+    # 所以k点间隔是2π/(2*L) = π/L
+    dk = np.pi / L
 
     # 找到最接近 k_max + dk 的k点
     kx_idx = max_idx[1]
     ky_idx = max_idx[0]
 
-    if kx_idx + 1 < len(k_points):
-        kx_plus_dk = kx_idx + 1
-    else:
-        kx_plus_dk = kx_idx - 1
+    # 计算k_max + dk的理论值
+    k_plus_dk_x = k_max_x + dk
+    k_plus_dk_y = k_max_y + dk
 
-    if ky_idx + 1 < len(k_points):
-        ky_plus_dk = ky_idx + 1
-    else:
-        ky_plus_dk = ky_idx - 1
+    # 找到最接近k_max + dk的实际k点索引
+    kx_plus_dk_idx = np.argmin(np.abs(k_points_x - k_plus_dk_x))
+    ky_plus_dk_idx = np.argmin(np.abs(k_points_y - k_plus_dk_y))
 
     # 计算 S(k+δk_x)
-    S_kxplus = structure_factor[ky_idx, kx_plus_dk]
+    S_kxplus = structure_factor[ky_idx, kx_plus_dk_idx]
 
     # 计算 S(k+δk_y)
-    S_kyplus = structure_factor[ky_plus_dk, kx_idx]
+    S_kyplus = structure_factor[ky_plus_dk_idx, kx_idx]
 
     # 取平均
     S_kplus = 0.5 * (S_kxplus + S_kyplus)
@@ -725,18 +781,20 @@ def calculate_correlation_ratios(k_points, structure_factor, save_dir, type_name
     return ratio, (k_max_x, k_max_y)
 
 
-def calculate_af_order_parameter(k_points, spin_sf, L, save_dir, log_file=None, spin_data=None):
+def calculate_af_order_parameter(k_points_tuple, spin_sf, L, save_dir, log_file=None, spin_data=None):
     """
     计算反铁磁序参数 (AF Order Parameter)：m^2(L) = S(π, π)/L^2
 
     参数:
-    - k_points: k点网格
+    - k_points_tuple: 包含k_points_x和k_points_y的元组
     - spin_sf: 自旋结构因子
     - L: 系统大小
     - save_dir: 保存目录
     - log_file: 日志文件
     - spin_data: 自旋相关函数数据列表（可选，保持与其他序参量函数接口一致）
     """
+    # 解包k点
+    k_points_x, k_points_y = k_points_tuple
     # 忽略未使用的参数
     _ = spin_data  # 保持接口一致性
     if log_file is None:
@@ -760,14 +818,16 @@ def calculate_af_order_parameter(k_points, spin_sf, L, save_dir, log_file=None, 
     log_message(log_file, "计算反铁磁序参数...")
 
     # 找到最接近 (-π, -π) 的k点，对应反铁磁波矢
-    neg_pi_idx = np.argmin(np.abs(k_points + np.pi))
+    neg_pi_idx_x = np.argmin(np.abs(k_points_x + np.pi))
+    neg_pi_idx_y = np.argmin(np.abs(k_points_y + np.pi))
 
     # 获取 S(π, π) 的值
     # 由于k_points是从-π到π，所以(-π, -π)对应的是反铁磁波矢
-    S_pi_pi = spin_sf[neg_pi_idx, neg_pi_idx]
+    S_pi_pi = spin_sf[neg_pi_idx_y, neg_pi_idx_x]
 
     # 计算反铁磁序参数
-    m_squared = S_pi_pi / (L * L)
+    # L是简盘数量，每个简盘有4个点，所以总格点数是L*L*4
+    m_squared = S_pi_pi / (L * L * 4)
 
     # 保存结果
     af_data = {

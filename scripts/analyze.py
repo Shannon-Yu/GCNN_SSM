@@ -89,27 +89,27 @@ def main(args=None):
         os.makedirs(dimer_dir, exist_ok=True)
 
         # 计算自旋因子
-        k_points, spin_sf = calculate_spin_structure_factor(vqs, lattice, L, spin_dir, analyze_log)
-        plot_structure_factor(k_points, spin_sf, L, J2, J1, "Spin", spin_dir)
+        k_points_tuple, spin_sf = calculate_spin_structure_factor(vqs, lattice, L, spin_dir, analyze_log)
+        plot_structure_factor(k_points_tuple, spin_sf, L, J2, J1, "Spin", spin_dir)
         # 加载自旋相关函数数据，与plaquette和dimer处理方式保持一致
         spin_data = np.load(os.path.join(spin_dir, "spin_correlation_data.npy"), allow_pickle=True)
-        af_order = calculate_af_order_parameter(k_points, spin_sf, L, spin_dir, analyze_log, spin_data)
-        neel_ratio, _ = calculate_correlation_ratios(k_points, spin_sf, spin_dir, "neel", analyze_log)
+        af_order = calculate_af_order_parameter(k_points_tuple, spin_sf, L, spin_dir, analyze_log, spin_data)
+        neel_ratio, _ = calculate_correlation_ratios(k_points_tuple, spin_sf, spin_dir, "neel", analyze_log)
 
         # 计算简盘因子
-        k_points, plaq_sf = calculate_plaquette_structure_factor(vqs, lattice, L, plaquette_dir, analyze_log)
-        plot_structure_factor(k_points, plaq_sf, L, J2, J1, "Plaquette", plaquette_dir)
+        k_points_tuple, plaq_sf = calculate_plaquette_structure_factor(vqs, lattice, L, plaquette_dir, analyze_log)
+        plot_structure_factor(k_points_tuple, plaq_sf, L, J2, J1, "Plaquette", plaquette_dir)
         plaquette_data = np.load(os.path.join(plaquette_dir, "plaquette_correlation_data.npy"), allow_pickle=True)
         plaq_order = calculate_plaquette_order_parameter(plaquette_data, L, plaquette_dir, analyze_log)
-        plaq_ratio, _ = calculate_correlation_ratios(k_points, plaq_sf, plaquette_dir, "plaquette", analyze_log)
+        plaq_ratio, _ = calculate_correlation_ratios(k_points_tuple, plaq_sf, plaquette_dir, "plaquette", analyze_log)
 
 
         # 计算二聚体结构因子
-        k_points, dimer_sf = calculate_dimer_structure_factor(vqs, lattice, L, dimer_dir, analyze_log)
-        plot_structure_factor(k_points, dimer_sf, L, J2, J1, "Dimer", dimer_dir)
+        k_points_tuple, dimer_sf = calculate_dimer_structure_factor(vqs, lattice, L, dimer_dir, analyze_log)
+        plot_structure_factor(k_points_tuple, dimer_sf, L, J2, J1, "Dimer", dimer_dir)
         dimer_data = np.load(os.path.join(dimer_dir, "dimer_correlation_data.npy"), allow_pickle=True)
         dimer_order = calculate_dimer_order_parameter(dimer_data, L, dimer_dir, analyze_log)
-        dimer_ratio, _ = calculate_correlation_ratios(k_points, dimer_sf, dimer_dir, "dimer", analyze_log)
+        dimer_ratio, _ = calculate_correlation_ratios(k_points_tuple, dimer_sf, dimer_dir, "dimer", analyze_log)
 
 
 
