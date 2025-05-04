@@ -1,0 +1,300 @@
+import os
+import logging
+import sys
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["JAX_PLATFORM_NAME"] = "gpu"
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"]="false"
+import jax
+import netket as nk
+import numpy as np
+from scipy.sparse.linalg import eigsh
+import time
+import json
+import netket.nn as nknn
+import flax
+import flax.linen as nn
+import jax.numpy as jnp
+import math
+from math import pi
+from netket.nn import log_cosh, reim_selu
+from netket.utils.group.planar import rotation, reflection_group, D
+from netket.utils.group import PointGroup, Identity
+from netket.operator.spin import sigmax, sigmay, sigmaz
+from netket.utils.group import PermutationGroup,Permutation
+from netket.graph import Kagome
+from netket.utils.group.planar import rotation, reflection_group, D
+from netket.optimizer.qgt import (
+QGTJacobianPyTree, QGTJacobianDense, QGTOnTheFly
+)
+from netket.operator import AbstractOperator
+from netket.vqs import VariationalState
+
+from scipy import sparse as _sparse
+from netket.utils.types import DType as _DType 
+from netket.hilbert import DiscreteHilbert as _DiscreteHilbert
+from netket.operator import LocalOperator as _LocalOperator
+from netket.operator.spin import sigmax, sigmay, sigmaz
+
+N_features = 4
+N_layers = 4
+
+J1 = 0.08
+J2 = 0.05
+Q = 1.0-J2
+
+Lx = 10
+Ly = 10
+
+lattice = nk.graph.Lattice(
+basis_vectors = [[1.0,0.0], [0.0,1.0]], 
+extent = (Lx,Ly), pbc=[True,True], max_neighbor_order = 2)
+dmax=np.max(lattice.distances())
+
+hi = nk.hilbert.Spin(s=1/2, N=lattice.n_nodes, total_sz=0)
+
+dmax=np.max(lattice.distances())
+sampler = nk.sampler.MetropolisExchange(hilbert=hi, graph=lattice, n_chains=2**12,d_max=dmax,dtype=np.int8)#d_max=1#dtype=np.float64 
+#10x10 
+local_cluster=[2,91,1,11,80,90,0,10,20,99,9,19,8]
+mask=jnp.zeros(lattice.n_nodes)
+
+for i in range(int(lattice.n_nodes)):
+    mask=mask.at[i].set(False)
+    
+for i in local_cluster:
+    mask=mask.at[i].set(True)    
+    
+symmetries=lattice.space_group(D(4))
+
+sgb=lattice.space_group_builder(point_group=D(4))
+momentum=[0.0,0.0]
+chi=sgb.space_group_irreps(momentum)[0]
+
+print(sgb.little_group(momentum).character_table_readable())
+print(chi)
+ 
+model=nk.models.GCNN(symmetries = symmetries, layers=N_layers,param_dtype = np.complex128, features=N_features, equal_amplitudes=False,parity=1,input_mask=mask, characters=chi)
+
+
+start = time.time()
+
+vqs = nk.vqs.MCState(
+sampler=sampler,
+model=model,
+n_samples=2**12,
+n_discard_per_chain=0,
+chunk_size=2**10,
+)
+
+from tqdm import tqdm
+
+
+with open("GCNN_variables_Lx=10_Ly=10_GCNN_J1=0.08_J2=0.05_Q=0.95_III.mpack",'rb') as file:
+    vqs=flax.serialization.from_bytes(vqs,file.read())
+
+vqs.n_samples= 2**20
+
+if os.path.exists("DD_cf_x_real_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+  os.remove("DD_cf_x_real_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_cf_x_real does not exist") 
+
+if os.path.exists("DD_cf_x_imag_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+  os.remove("DD_cf_x_imag_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_cf_x_imag does not exist")
+
+if os.path.exists("DD_cf_x_error_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+  os.remove("DD_cf_x_error_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_cf_x_error does not exist")  
+  
+
+if os.path.exists("DD_cf_x_variance_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+    os.remove("DD_cf_x_variance_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_cf_x_variance does not exist")
+
+
+if os.path.exists("DD_cf_y_real_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+  os.remove("DD_cf_y_real_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_cf_y_real does not exist")
+
+if os.path.exists("DD_cf_y_imag_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+  os.remove("DD_cf_y_imag_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_cf_y_imag does not exist")
+
+if os.path.exists("DD_cf_y_error_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+  os.remove("DD_cf_y_error_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_cf_y_error does not exist")
+
+
+if os.path.exists("DD_cf_y_variance_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+    os.remove("DD_cf_y_variance_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_cf_y_variance does not exist")
+
+
+if os.path.exists("DD_z_cf_x_real_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+  os.remove("DD_z_cf_x_real_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_z_cf_x_real does not exist")
+
+if os.path.exists("DD_z_cf_x_imag_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+  os.remove("DD_z_cf_x_imag_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_z_cf_x_imag does not exist")
+
+if os.path.exists("DD_z_cf_x_error_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+  os.remove("DD_z_cf_x_error_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_z_cf_x_error does not exist")
+
+
+if os.path.exists("DD_z_cf_x_variance_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+    os.remove("DD_z_cf_x_variance_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_z_cf_x_variance does not exist")
+
+
+
+if os.path.exists("DD_z_cf_y_real_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+  os.remove("DD_z_cf_y_real_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_z_cf_y_real does not exist")
+
+if os.path.exists("DD_z_cf_y_imag_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+  os.remove("DD_z_cf_y_imag_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_z_cf_y_imag does not exist")
+
+if os.path.exists("DD_z_cf_y_error_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+  os.remove("DD_z_cf_y_error_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_z_cf_y_error does not exist")
+
+if os.path.exists("DD_z_cf_y_variance_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+    os.remove("DD_z_cf_y_variance_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file DD_z_cf_y_variance does not exist")
+  
+if os.path.exists("D_x_op_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):        
+    os.remove("D_x_op_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file D_x_op does not exist")
+
+if os.path.exists("D_y_op_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+    os.remove("D_y_op_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file D_y_op does not exist")  
+  
+
+if os.path.exists("Dz_x_op_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"): 
+    os.remove("Dz_x_op_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:                                                                                                                     print("The file Dz_x_op does not exist")
+
+
+if os.path.exists("Dz_y_op_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):              os.remove("Dz_y_op_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")              
+else:                                                                                                                     print("The file Dz_y_op does not exist")  
+
+N_ls=lattice.n_nodes
+
+#dimer order parameter 
+
+d2x=0.0
+d2y=0.0
+
+dz2x=0.0
+dz2y=0.0
+
+r0 = 0
+r1x = Ly # i = y +Ly*x; (x,y)=(0,1) or (1,0)
+r1y = 1
+
+#dimer-dimer correlation function and dimer order parameter
+for x in range(Lx):
+    for y in range(Ly):
+        r = y + Ly*x
+        rx = y + Ly*((x+1)%Lx)
+        ry = (y+1)%Ly+Ly*x
+
+        SiSj_x = 0.25*(sigmax(hi,0)*sigmax(hi,r1x)+sigmay(hi,0)*sigmay(hi,r1x)+sigmaz(hi,0)*sigmaz(hi,r1x))
+
+        SkSl_x = 0.25*(sigmax(hi,r)*sigmax(hi,rx)+sigmay(hi,r)*sigmay(hi,rx)+sigmaz(hi,r)*sigmaz(hi,rx))
+
+        SiSj_y = 0.25*(sigmax(hi,0)*sigmax(hi,r1y)+sigmay(hi,0)*sigmay(hi,r1y)+sigmaz(hi,0)*sigmaz(hi,r1y))
+
+        SkSl_y = 0.25*(sigmax(hi,r)*sigmax(hi,ry)+sigmay(hi,r)*sigmay(hi,ry)+sigmaz(hi,r)*sigmaz(hi,ry))
+
+        SiSj_z_x = 0.25*sigmaz(hi,0)*sigmaz(hi,r1x)
+
+        SkSl_z_x = 0.25*sigmaz(hi,r)*sigmaz(hi,rx)
+
+        SiSj_z_y = 0.25*sigmaz(hi,0)*sigmaz(hi,r1y)
+
+        SkSl_z_y = 0.25*sigmaz(hi,r)*sigmaz(hi,ry)
+        
+        
+        dd_cf_x = SiSj_x*SkSl_x
+        dd_cf_x_expect = vqs.expect(dd_cf_x)
+
+        dd_cf_y = SiSj_y*SkSl_y
+        dd_cf_y_expect = vqs.expect(dd_cf_y)
+
+        dd_z_cf_x = SiSj_z_x*SkSl_z_x
+        dd_z_cf_x_expect = vqs.expect(dd_z_cf_x)
+
+        dd_z_cf_y = SiSj_z_y*SkSl_z_y
+        dd_z_cf_y_expect = vqs.expect(dd_z_cf_y)
+
+        with open("DD_cf_x_real_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+                file.write(str(x)+" "+str(y)+" "+str(dd_cf_x_expect.mean.real)+"\n")
+           
+        with open("DD_cf_y_real_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+                file.write(str(x)+" "+str(y)+" "+str(dd_cf_y_expect.mean.real)+"\n")
+
+        with open("DD_z_cf_x_real_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+                file.write(str(x)+" "+str(y)+" "+str(dd_z_cf_x_expect.mean.real)+"\n")
+
+        with open("DD_z_cf_y_real_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:                                                                                                                          file.write(str(x)+" "+str(y)+" "+str(dd_z_cf_y_expect.mean.real)+"\n")
+
+        with open("DD_cf_x_imag_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+                file.write(str(x)+" "+str(y)+" "+str(dd_cf_x_expect.mean.imag)+"\n")
+
+        with open("DD_cf_y_imag_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+                file.write(str(x)+" "+str(y)+" "+str(dd_cf_y_expect.mean.imag)+"\n")
+
+        with open("DD_z_cf_x_imag_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+                file.write(str(x)+" "+str(y)+" "+str(dd_z_cf_x_expect.mean.imag)+"\n")
+
+        with open("DD_z_cf_y_imag_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+                file.write(str(x)+" "+str(y)+" "+str(dd_z_cf_y_expect.mean.imag)+"\n")
+
+        d2x = d2x + ((-1.0)**x)*dd_cf_x_expect.mean.real
+
+        d2y = d2y + ((-1.0)**y)*dd_cf_y_expect.mean.real
+
+        dz2x = dz2x + ((-1.0)**x)*dd_z_cf_x_expect.mean.real
+
+        dz2y = dz2y + ((-1.0)**y)*dd_z_cf_y_expect.mean.real
+
+
+
+with open("D_x_op_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+       file.write(str(d2x/N_ls))
+with open("D_y_op_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+       file.write(str(d2y/N_ls)) 
+with open("Dz_x_op_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+       file.write(str(dz2x/N_ls))
+with open("Dz_y_op_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+       file.write(str(dz2y/N_ls))
+
+end = time.time()
+
+
+print('The GCNN calculation took',end-start,'seconds')
+
+

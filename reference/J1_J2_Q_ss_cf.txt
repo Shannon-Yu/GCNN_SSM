@@ -1,0 +1,174 @@
+import os
+import logging
+import sys
+os.environ["CUDA_VISIBLE_DEVICES"]="2"
+os.environ["JAX_PLATFORM_NAME"] = "gpu"
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"]="false"
+import jax
+import netket as nk
+import numpy as np
+from scipy.sparse.linalg import eigsh
+import time
+import sys 
+import json
+import netket.nn as nknn
+import flax
+import flax.linen as nn
+import jax.numpy as jnp
+import math
+from math import pi
+from netket.nn import log_cosh, reim_selu
+from netket.utils.group.planar import rotation, reflection_group, D
+from netket.utils.group import PointGroup, Identity
+from netket.operator.spin import sigmax, sigmay, sigmaz
+from netket.utils.group import PermutationGroup,Permutation
+from netket.graph import Kagome
+from netket.utils.group.planar import rotation, reflection_group, D
+from netket.optimizer.qgt import (
+QGTJacobianPyTree, QGTJacobianDense, QGTOnTheFly
+)
+from netket.operator import AbstractOperator
+from netket.vqs import VariationalState
+from scipy import sparse as _sparse
+from netket.utils.types import DType as _DType 
+from netket.hilbert import DiscreteHilbert as _DiscreteHilbert
+from netket.operator import LocalOperator as _LocalOperator
+
+N_features = 4
+N_layers = 4
+
+
+J1 = 0.08
+J2 = 0.05
+Q = 1.0 -J2
+
+Lx = 10
+Ly = 10
+
+lattice = nk.graph.Lattice(
+basis_vectors = [[1.0,0.0], [0.0,1.0]], 
+extent = (Lx,Ly), pbc=[True,True], max_neighbor_order = 2)
+dmax=np.max(lattice.distances())
+
+hi = nk.hilbert.Spin(s=1/2, N=lattice.n_nodes, total_sz=0)
+ 
+sigmax = [[0, 0.5], [0.5, 0]]
+sigmay = [[0, -0.5j], [0.5j, 0]] 
+sigmaz = [[0.5, 0], [0, -0.5]]
+unitm = [[1.0,0.0],[0.0,1.0]]
+
+
+sxsx = np.kron(sigmax,sigmax)
+sysy = np.kron(sigmay,sigmay)
+szsz = np.kron(sigmaz,sigmaz)
+
+umum = np.kron(unitm,unitm)
+
+SiSj = sxsx + sysy + szsz 
+
+sampler = nk.sampler.MetropolisExchange(hilbert=hi, graph=lattice, n_chains=2**12,d_max=dmax,dtype=np.int8)#d_max=1 
+
+#10x10 
+local_cluster=[2,91,1,11,80,90,0,10,20,99,9,19,8]
+
+mask=jnp.zeros(lattice.n_nodes)
+
+for i in range(int(lattice.n_nodes)):
+    mask=mask.at[i].set(False)
+    
+for i in local_cluster:
+    mask=mask.at[i].set(True)    
+     
+symmetries=lattice.space_group(D(4))
+
+sgb=lattice.space_group_builder(point_group=D(4))
+momentum=[0.0,0.0]
+chi=sgb.space_group_irreps(momentum)[0]
+
+print(sgb.little_group(momentum).character_table_readable())
+print(chi)
+ 
+model=nk.models.GCNN(symmetries = symmetries, layers=N_layers,param_dtype = np.complex128, features=N_features, equal_amplitudes=False,parity=1,input_mask=mask, characters=chi)
+
+
+start = time.time()
+
+vqs = nk.vqs.MCState(
+sampler=sampler,
+model=model,
+n_samples=2**12,
+n_discard_per_chain=0,
+chunk_size=2**10,
+)
+
+
+from tqdm import tqdm
+
+
+with open("GCNN_variables_Lx=10_Ly=10_GCNN_J1=0.08_J2=0.05_Q=0.95_III.mpack",'rb') as file:
+    vqs=flax.serialization.from_bytes(vqs,file.read())
+
+vqs.n_samples= 2**20
+
+if os.path.exists("SS_cf_real_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+  os.remove("SS_cf_real_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file SS_cf_real does not exist") 
+
+if os.path.exists("SS_cf_imag_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+  os.remove("SS_cf_imag_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file SS_cf_imag does not exist")
+
+if os.path.exists("SS_cf_error_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):
+  os.remove("SS_cf_error_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file SS_cf_error does not exist")  
+  
+
+if os.path.exists("SS_cf_variance_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):        os.remove("SS_cf_variance_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file SS_cf_variance does not exist")
+
+if os.path.exists("s_m_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat"):        
+    os.remove("s_m_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat")
+else:
+  print("The file s_m does not exist")
+  
+  
+N_ls=lattice.n_nodes
+
+s_m=0.0
+r0 = lattice.positions[0]
+
+for i_s in range(1,N_ls):
+    #spin-spin correlation function
+    ss_cf_1 = []
+    sites = []
+    ss_cf_1.append(SiSj)
+    sites.append([0,i_s])
+    ss_cf = nk.operator.LocalOperator(hi,ss_cf_1,sites)
+    ss_cf_expect = vqs.expect(ss_cf)
+    r_i_s=lattice.positions[i_s]
+    print(r_i_s)
+    with open("SS_cf_real_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+       file.write(str(r_i_s[0])+" "+str(r_i_s[1])+" "+str(ss_cf_expect.mean.real)+"\n")
+    with open("SS_cf_imag_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+       file.write(str(r_i_s[0])+" "+str(r_i_s[1])+" "+str(ss_cf_expect.mean.imag)+"\n")
+    with open("SS_cf_variance_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+       file.write(str(r_i_s[0])+" "+str(r_i_s[1])+" "+str(ss_cf_expect.variance)+"\n")
+    with open("SS_cf_error_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+       file.write(str(r_i_s[0])+" "+str(r_i_s[1])+" "+str(ss_cf_expect.error_of_mean)+"\n")   
+    #staggered magnetization   
+    s_m = s_m + ((-1.0)**(r_i_s[0]+r_i_s[1]))*ss_cf_expect.mean.real  
+
+with open("s_m_Lx="+str(Lx)+"_Ly="+str(Ly)+"_GCNN_J1"+str(J1)+"_J2="+str(J2)+"_Q="+str(Q)+".dat","a+") as file:
+       file.write(str((s_m+0.75)/(Lx*Ly)))
+                
+
+end = time.time()
+
+
+print('The GCNN calculation took',end-start,'seconds')
+
+
