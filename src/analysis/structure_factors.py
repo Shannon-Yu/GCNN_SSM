@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 from functools import partial
 from jax import vmap
+from scipy.interpolate import RegularGridInterpolator
 from src.utils.logging import log_message
 
 def create_k_mesh(lattice=None, L=None):
@@ -103,54 +104,37 @@ def calculate_spin_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     for i in range(N):
         r_vectors[i] = positions - positions[i]
 
-    # 使用NetKet的sharding功能并行计算相关函数
-    log_message(log_file, "计算自旋相关函数...")
+    # 只计算位点0与其他位点的相关函数
+    log_message(log_file, "计算自旋相关函数（仅位点0与其他位点）...")
 
-    # 定义一个函数来计算一批位点的相关函数
-    def compute_correlations_batch(i_batch):
-        batch_correlations = []
-        for i in i_batch:
-            sx_i, sy_i, sz_i = spin_ops[i]
+    # 获取位点0的自旋操作符
+    sx_0, sy_0, sz_0 = spin_ops[0]
 
-            # 预先构建所有j的操作符
-            ops_list = []
-            for j in range(N):
-                sx_j, sy_j, sz_j = spin_ops[j]
-                # 构建自旋点积操作符
-                spin_dot_op = sx_i @ sx_j + sy_i @ sy_j + sz_i @ sz_j
-                ops_list.append(spin_dot_op)
+    # 计算位点0与所有位点的相关函数
+    correlation_data = []
 
-            # 逐个计算操作符的期望值
-            corr_values = []
-            for op in ops_list:
-                # 计算单个操作符的期望值
-                corr = vqs.expect(op)
-                corr_values.append(corr)
+    # 预先构建所有j的操作符
+    ops_list = []
+    for j in range(N):
+        sx_j, sy_j, sz_j = spin_ops[j]
+        # 构建自旋点积操作符
+        spin_dot_op = sx_0 @ sx_j + sy_0 @ sy_j + sz_0 @ sz_j
+        ops_list.append(spin_dot_op)
 
-            # 保存结果
-            for j, corr in enumerate(corr_values):
-                r_ij = r_vectors[i, j]
-                batch_correlations.append({
-                    'i': i, 'j': j,
-                    'r_x': r_ij[0], 'r_y': r_ij[1],
-                    'corr': corr.mean.real
-                })
-        return batch_correlations
+    # 逐个计算操作符的期望值
+    log_message(log_file, f"计算位点0与其他位点的相关函数...")
+    for j, op in enumerate(ops_list):
+        # 计算单个操作符的期望值
+        corr = vqs.expect(op)
+        r_0j = r_vectors[0, j]
+        correlation_data.append({
+            'i': 0, 'j': j,
+            'r_x': r_0j[0], 'r_y': r_0j[1],
+            'corr': corr.mean.real
+        })
 
-    # 分批处理以减少内存使用
-    batch_size = N//2  # 每批处理的位点数，设为总数的一半
-    all_correlations = []
-
-    for batch_start in range(0, N, batch_size):
-        batch_end = min(batch_start + batch_size, N)
-        log_message(log_file, f"处理位点 {batch_start}-{batch_end-1}/{N}...")
-
-        # 创建当前批次的位点索引
-        i_batch = list(range(batch_start, batch_end))
-
-        # 计算当前批次的相关函数
-        batch_correlations = compute_correlations_batch(i_batch)
-        all_correlations.extend(batch_correlations)
+    # 将所有结果合并
+    all_correlations = correlation_data
 
     # 将所有结果合并
     correlation_data = all_correlations
@@ -478,7 +462,8 @@ def compute_spin_dot_product(hilbert, site_i, site_j, spin_ops=None):
 def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     """
     准确计算二聚体-二聚体结构因子
-    C_d(r) = <[S(0)·S(0+x)][S(r)·S(r+x)]>
+    C_d(r) = <[S(0)·S(0+x)][S(r)·S(r+x)]> 和 <[S(0)·S(0+y)][S(r)·S(r+y)]>
+    分别处理x和y方向的二聚体，使用总位点数N进行归一化
     优化版本：预计算操作符，使用向量化计算加速傅里叶变换
     """
     if log_file is None:
@@ -500,6 +485,9 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     log_message(log_file, "="*80)
     log_message(log_file, "开始计算二聚体结构因子...")
 
+    # 获取总位点数
+    N = lattice.n_nodes
+
     # 创建k点网格
     k_points_x, k_points_y, kx_grid, ky_grid = create_k_mesh(lattice)
     n_kx = len(k_points_x)
@@ -508,10 +496,12 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     # 初始化dimer结构因子
     dimer_sf = np.zeros((n_ky, n_kx), dtype=complex)
 
-    # 收集所有水平方向的二聚体键
-    log_message(log_file, "识别水平方向的二聚体...")
-    dimers = []
-    dimer_positions = []  # 存储每个二聚体的中心位置
+    # 收集所有方向的二聚体键（分别处理x和y方向）
+    log_message(log_file, "识别x和y方向的二聚体...")
+    dimers_x = []  # x方向的二聚体
+    dimers_y = []  # y方向的二聚体
+    dimer_positions_x = []  # 存储每个x方向二聚体的中心位置
+    dimer_positions_y = []  # 存储每个y方向二聚体的中心位置
 
     # 预先获取所有边
     edges = list(lattice.edges())
@@ -521,30 +511,47 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
             for unit_idx in range(4):
                 site_i = 4 * (y + x * L) + unit_idx
 
-                # 找到水平相邻位点
+                # 找到相邻位点
                 for edge in edges:
                     if edge[0] == site_i or edge[1] == site_i:
                         site_j = edge[1] if edge[0] == site_i else edge[0]
 
-                        # 检查是否为水平边 (x方向)
+                        # 获取位置
                         pos_i = lattice.positions[site_i]
                         pos_j = lattice.positions[site_j]
 
-                        # 如果是水平方向的边
+                        # 检查是否为水平边 (x方向)
                         if abs(pos_j[0] - pos_i[0]) > 0 and abs(pos_j[1] - pos_i[1]) < 0.1:
                             # 避免重复计算
                             if site_i < site_j:
-                                dimers.append((site_i, site_j))
+                                dimers_x.append((site_i, site_j))
                                 # 计算二聚体的中心位置
                                 dimer_center = 0.5 * (np.array(pos_i) + np.array(pos_j))
-                                dimer_positions.append(dimer_center)
+                                dimer_positions_x.append(dimer_center)
 
-    # 如果没有找到水平方向的二聚体，给出警告
+                        # 检查是否为垂直边 (y方向)
+                        elif abs(pos_j[1] - pos_i[1]) > 0 and abs(pos_j[0] - pos_i[0]) < 0.1:
+                            # 避免重复计算
+                            if site_i < site_j:
+                                dimers_y.append((site_i, site_j))
+                                # 计算二聚体的中心位置
+                                dimer_center = 0.5 * (np.array(pos_i) + np.array(pos_j))
+                                dimer_positions_y.append(dimer_center)
+
+    # 合并所有二聚体
+    dimers = dimers_x + dimers_y
+    dimer_positions = dimer_positions_x + dimer_positions_y
+
+    # 记录x和y方向二聚体的数量
+    n_dimers_x = len(dimers_x)
+    n_dimers_y = len(dimers_y)
+
+    # 如果没有找到二聚体，给出警告
     if len(dimers) == 0:
-        log_message(log_file, "警告: 没有找到水平方向的二聚体！")
+        log_message(log_file, "警告: 没有找到二聚体！")
         return (k_points_x, k_points_y), np.zeros((n_ky, n_kx))
 
-    log_message(log_file, f"找到 {len(dimers)} 个水平方向的二聚体")
+    log_message(log_file, f"找到 {n_dimers_x} 个x方向的二聚体和 {n_dimers_y} 个y方向的二聚体，总共 {len(dimers)} 个二聚体")
     n_dimers = len(dimers)
 
     # 预计算所有二聚体的自旋点积操作符
@@ -674,8 +681,8 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     # 存储结果
     dimer_sf = np.array(sf_values_2d)
 
-    # 归一化
-    dimer_sf /= n_dimers
+    # 使用总位点数N进行归一化，而不是二聚体数量
+    dimer_sf /= N
 
     # 保存数据
     np.save(os.path.join(save_dir, "dimer_correlation_data.npy"), dimer_data)
@@ -690,6 +697,7 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
 def calculate_correlation_ratios(k_points_tuple, structure_factor, save_dir, type_name, log_file=None):
     """
     计算相关比率 R = 1 - S(k+δk)/S(k)，其中δk = 2π/L
+    使用插值方法计算S(k+δk)，而不是直接使用最近的网格点
 
     参数:
     - k_points_tuple: 包含k_points_x和k_points_y的元组
@@ -736,30 +744,32 @@ def calculate_correlation_ratios(k_points_tuple, structure_factor, save_dir, typ
     k_max_y = k_points_y[max_idx[0]]
     S_max = structure_factor[max_idx]
 
-    # 计算δk = 2π/L，L是简盘数量，每个简盘在水平和垂直方向各占2个点
-    # 所以k点间隔是2π/(2*L) = π/L
-    dk = np.pi / L
+    # 计算δk = 2π/L，正确的相关长度定义
+    dk = 2.0 * np.pi / L
 
-    # 找到最接近 k_max + dk 的k点
-    kx_idx = max_idx[1]
-    ky_idx = max_idx[0]
-
-    # 计算k_max + dk的理论值
+    # 计算k_max + δk的理论值
     k_plus_dk_x = k_max_x + dk
     k_plus_dk_y = k_max_y + dk
 
-    # 找到最接近k_max + dk的实际k点索引
-    kx_plus_dk_idx = np.argmin(np.abs(k_points_x - k_plus_dk_x))
-    ky_plus_dk_idx = np.argmin(np.abs(k_points_y - k_plus_dk_y))
+    # 使用双线性插值计算S(k+δk)
 
-    # 计算 S(k+δk_x)
-    S_kxplus = structure_factor[ky_idx, kx_plus_dk_idx]
+    # 创建插值函数
+    interp_func = RegularGridInterpolator((k_points_y, k_points_x), structure_factor,
+                                          method='linear', bounds_error=False, fill_value=None)
 
-    # 计算 S(k+δk_y)
-    S_kyplus = structure_factor[ky_plus_dk_idx, kx_idx]
+    # 计算S(k+δk_x, k_y)
+    S_kxplus = interp_func(np.array([k_max_y, k_plus_dk_x]))
+
+    # 计算S(k_x, k+δk_y)
+    S_kyplus = interp_func(np.array([k_plus_dk_y, k_max_x]))
 
     # 取平均
     S_kplus = 0.5 * (S_kxplus + S_kyplus)
+
+    log_message(log_file, f"S_max = {S_max:.6f} at k=({k_max_x:.4f}, {k_max_y:.4f})")
+    log_message(log_file, f"S(k+δk_x) = {S_kxplus:.6f} at k=({k_plus_dk_x:.4f}, {k_max_y:.4f})")
+    log_message(log_file, f"S(k+δk_y) = {S_kyplus:.6f} at k=({k_max_x:.4f}, {k_plus_dk_y:.4f})")
+    log_message(log_file, f"S_kplus (avg) = {S_kplus:.6f}")
 
     # 计算相关比率
     ratio = 1.0 - S_kplus / S_max
