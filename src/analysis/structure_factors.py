@@ -745,7 +745,7 @@ def calculate_correlation_ratios(k_points_tuple, structure_factor, save_dir, typ
     S_max = structure_factor[max_idx]
 
     # 计算δk = 2π/L，正确的相关长度定义
-    dk = 2.0 * np.pi / L
+    dk = np.pi / L
 
     # 计算k_max + δk的理论值
     k_plus_dk_x = k_max_x + dk
