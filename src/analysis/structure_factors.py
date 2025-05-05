@@ -5,7 +5,6 @@ import jax
 import jax.numpy as jnp
 from functools import partial
 from jax import vmap
-from scipy.interpolate import RegularGridInterpolator
 from src.utils.logging import log_message
 
 def create_k_mesh(lattice=None, L=None):
@@ -37,8 +36,8 @@ def create_k_mesh(lattice=None, L=None):
 
     # 生成k点，范围为[0, 2π]，确保包含端点
     # 使用linspace生成均匀分布的点，包括0和2π
-    k_points_x = np.linspace(0, 2*np.pi, 2*Lx + 1)
-    k_points_y = np.linspace(0, 2*np.pi, 2*Ly + 1)
+    k_points_x = np.linspace(0, 2*np.pi, 2*Lx+1)
+    k_points_y = np.linspace(0, 2*np.pi, 2*Ly+1)
 
     # 打印k点网格大小，用于调试
     print(f"k点网格大小: x方向 {len(k_points_x)}个点, y方向 {len(k_points_y)}个点")
@@ -247,9 +246,13 @@ def calculate_plaquette_structure_factor(vqs, lattice, L, save_dir, log_file=Non
     plaquettes = []
     plaquette_positions = []  # 存储每个简盘的中心位置
 
-    for x in range(L):
-        for y in range(L):
-            base = 4 * (y + x * L)
+    # 获取晶格尺寸
+    Lx, Ly = lattice.extent
+    log_message(log_file, f"晶格尺寸: Lx={Lx}, Ly={Ly}")
+
+    for x in range(Lx):
+        for y in range(Ly):
+            base = 4 * (y + x * Ly)  # 修正：使用Ly而不是L
             # 单元格内的四个点，按照左下、右下、右上、左上排列
             plaq = [base, base+1, base+2, base+3]
             plaquettes.append(plaq)
@@ -526,10 +529,14 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     # 预先获取所有边
     edges = list(lattice.edges())
 
-    for x in range(L):
-        for y in range(L):
+    # 获取晶格尺寸
+    Lx, Ly = lattice.extent
+    log_message(log_file, f"晶格尺寸: Lx={Lx}, Ly={Ly}")
+
+    for x in range(Lx):
+        for y in range(Ly):
             for unit_idx in range(4):
-                site_i = 4 * (y + x * L) + unit_idx
+                site_i = 4 * (y + x * Ly) + unit_idx  # 修正：使用Ly而不是L
 
                 # 找到相邻位点
                 for edge in edges:
@@ -622,48 +629,94 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
     for i in range(n_dimers):
         r_vectors[i] = dimer_positions - dimer_positions[i]
 
-    # 计算二聚体-二聚体相关函数，使用0点位优化
+    # 计算二聚体-二聚体相关函数，分别处理x方向和y方向
     log_message(log_file, "计算二聚体相关函数...")
-
-    # 选择第一个二聚体作为参考点
-    reference_dimer = 0
-    op_ref = dimer_ops[reference_dimer]
-    dimer_ref = dimers[reference_dimer]
-
-    log_message(log_file, f"使用二聚体 {reference_dimer} 作为参考点: {dimer_ref}...")
-
-    # 预先构建所有j的操作符
-    ops_list = []
-    for j in range(n_dimers):
-        op_j = dimer_ops[j]
-        # 构建组合操作符
-        combined_op = op_ref @ op_j
-        ops_list.append(combined_op)
-
-    # 直接计算所有操作符的期望值
-    log_message(log_file, f"计算 {len(ops_list)} 个相关函数...")
     dimer_data = []
 
-    # 计算进度更新间隔
-    update_interval = 10  # 每10个记录一次进度
+    # 分别处理x方向和y方向的二聚体
+    if n_dimers_x > 0:
+        # 选择第一个x方向二聚体作为x方向参考点
+        reference_dimer_x = 0  # dimers_x列表中的第一个
+        op_ref_x = dimer_ops[reference_dimer_x]
+        dimer_ref_x = dimers[reference_dimer_x]
 
-    # 直接计算所有操作符的期望值
-    for j, op in enumerate(ops_list):
-        # 计算单个操作符的期望值
-        corr = vqs.expect(op)
-        r_ij = r_vectors[reference_dimer, j]
-        dimer_j = dimers[j]
+        log_message(log_file, f"使用x方向二聚体 {reference_dimer_x} 作为x方向参考点: {dimer_ref_x}...")
 
-        # 保存结果
-        dimer_data.append({
-            'dimer_i': dimer_ref, 'dimer_j': dimer_j,
-            'r_x': r_ij[0], 'r_y': r_ij[1],
-            'corr': corr.mean.real
-        })
+        # 预先构建所有x方向二聚体的操作符
+        ops_list_x = []
+        for j in range(n_dimers_x):
+            op_j = dimer_ops[j]
+            # 构建组合操作符
+            combined_op = op_ref_x @ op_j
+            ops_list_x.append((j, combined_op))
 
-        # 定期更新进度
-        if j % update_interval == 0 or j == len(ops_list) - 1:
-            log_message(log_file, f"计算进度: {j+1}/{len(ops_list)}")
+        # 直接计算所有x方向操作符的期望值
+        log_message(log_file, f"计算 {len(ops_list_x)} 个x方向相关函数...")
+
+        # 计算进度更新间隔
+        update_interval = 10  # 每10个记录一次进度
+
+        # 直接计算所有操作符的期望值
+        for idx, (j, op) in enumerate(ops_list_x):
+            # 计算单个操作符的期望值
+            corr = vqs.expect(op)
+            r_ij = r_vectors[reference_dimer_x, j]
+            dimer_j = dimers[j]
+
+            # 保存结果
+            dimer_data.append({
+                'dimer_i': dimer_ref_x, 'dimer_j': dimer_j,
+                'r_x': r_ij[0], 'r_y': r_ij[1],
+                'corr': corr.mean.real,
+                'direction': 'x'
+            })
+
+            # 定期更新进度
+            if idx % update_interval == 0 or idx == len(ops_list_x) - 1:
+                log_message(log_file, f"计算x方向进度: {idx+1}/{len(ops_list_x)}")
+
+    if n_dimers_y > 0:
+        # 选择第一个y方向二聚体作为y方向参考点
+        reference_dimer_y = n_dimers_x  # dimers列表中的第一个y方向二聚体
+        op_ref_y = dimer_ops[reference_dimer_y]
+        dimer_ref_y = dimers[reference_dimer_y]
+
+        log_message(log_file, f"使用y方向二聚体 {reference_dimer_y} 作为y方向参考点: {dimer_ref_y}...")
+
+        # 预先构建所有y方向二聚体的操作符
+        ops_list_y = []
+        for j in range(n_dimers_x, n_dimers):
+            op_j = dimer_ops[j]
+            # 构建组合操作符
+            combined_op = op_ref_y @ op_j
+            ops_list_y.append((j, combined_op))
+
+        # 直接计算所有y方向操作符的期望值
+        log_message(log_file, f"计算 {len(ops_list_y)} 个y方向相关函数...")
+
+        # 计算进度更新间隔
+        update_interval = 10  # 每10个记录一次进度
+
+        # 直接计算所有操作符的期望值
+        for idx, (j, op) in enumerate(ops_list_y):
+            # 计算单个操作符的期望值
+            corr = vqs.expect(op)
+            r_ij = r_vectors[reference_dimer_y, j]
+            dimer_j = dimers[j]
+
+            # 保存结果
+            dimer_data.append({
+                'dimer_i': dimer_ref_y, 'dimer_j': dimer_j,
+                'r_x': r_ij[0], 'r_y': r_ij[1],
+                'corr': corr.mean.real,
+                'direction': 'y'
+            })
+
+            # 定期更新进度
+            if idx % update_interval == 0 or idx == len(ops_list_y) - 1:
+                log_message(log_file, f"计算y方向进度: {idx+1}/{len(ops_list_y)}")
+
+    log_message(log_file, f"总共计算了 {len(dimer_data)} 个二聚体相关函数")
 
     # 向量化计算傅里叶变换
     log_message(log_file, "计算傅里叶变换...")
@@ -719,7 +772,7 @@ def calculate_dimer_structure_factor(vqs, lattice, L, save_dir, log_file=None):
 def calculate_correlation_ratios(k_points_tuple, structure_factor, save_dir, type_name, log_file=None):
     """
     计算相关比率 R = 1 - S(k+δk)/S(k)，其中δk = 2π/L
-    使用插值方法计算S(k+δk)，而不是直接使用最近的网格点
+    使用最近的网格点计算S(k+δk)，而不是插值
 
     参数:
     - k_points_tuple: 包含k_points_x和k_points_y的元组
@@ -762,35 +815,37 @@ def calculate_correlation_ratios(k_points_tuple, structure_factor, save_dir, typ
 
     # 找到结构因子的最大值位置
     max_idx = np.unravel_index(np.argmax(structure_factor), structure_factor.shape)
-    k_max_x = k_points_x[max_idx[1]]
-    k_max_y = k_points_y[max_idx[0]]
+    max_idx_y, max_idx_x = max_idx  # 注意：第一个索引是y，第二个是x
+    k_max_x = k_points_x[max_idx_x]
+    k_max_y = k_points_y[max_idx_y]
     S_max = structure_factor[max_idx].item()
 
     # 计算δk = 2π/L，正确的相关长度定义
     dk = np.pi / L
+    log_message(log_file, f"使用dk = π/L = {dk:.6f}，L={L}")
 
-    # 计算k_max + δk的理论值
+    # 找到最接近k_max + δk的网格点
+    # x方向
     k_plus_dk_x = k_max_x + dk
+    idx_x_plus = np.argmin(np.abs(k_points_x - k_plus_dk_x))
+    k_x_plus_actual = k_points_x[idx_x_plus]
+
+    # y方向
     k_plus_dk_y = k_max_y + dk
+    idx_y_plus = np.argmin(np.abs(k_points_y - k_plus_dk_y))
+    k_y_plus_actual = k_points_y[idx_y_plus]
 
-    # 使用双线性插值计算S(k+δk)
-
-    # 创建插值函数
-    interp_func = RegularGridInterpolator((k_points_y, k_points_x), structure_factor,
-                                          method='linear', bounds_error=False, fill_value=None)
-
-    # 计算S(k+δk_x, k_y)
-    S_kxplus = interp_func(np.array([k_max_y, k_plus_dk_x])).item()
-
-    # 计算S(k_x, k+δk_y)
-    S_kyplus = interp_func(np.array([k_plus_dk_y, k_max_x])).item()
+    # 获取对应的结构因子值
+    S_kxplus = structure_factor[max_idx_y, idx_x_plus].item()
+    S_kyplus = structure_factor[idx_y_plus, max_idx_x].item()
 
     # 取平均
     S_kplus = 0.5 * (S_kxplus + S_kyplus)
 
     log_message(log_file, f"S_max = {S_max:.6f} at k=({k_max_x:.4f}, {k_max_y:.4f})")
-    log_message(log_file, f"S(k+δk_x) = {S_kxplus:.6f} at k=({k_plus_dk_x:.4f}, {k_max_y:.4f})")
-    log_message(log_file, f"S(k+δk_y) = {S_kyplus:.6f} at k=({k_max_x:.4f}, {k_plus_dk_y:.4f})")
+    log_message(log_file, f"理论上的k+δk点: x=({k_plus_dk_x:.4f}, {k_max_y:.4f}), y=({k_max_x:.4f}, {k_plus_dk_y:.4f})")
+    log_message(log_file, f"实际使用的最近网格点: x=({k_x_plus_actual:.4f}, {k_max_y:.4f}), y=({k_max_x:.4f}, {k_y_plus_actual:.4f})")
+    log_message(log_file, f"S(k+δk_x) = {S_kxplus:.6f}, S(k+δk_y) = {S_kyplus:.6f}")
     log_message(log_file, f"S_kplus (avg) = {S_kplus:.6f}")
 
     # 计算相关比率
@@ -816,6 +871,7 @@ def calculate_correlation_ratios(k_points_tuple, structure_factor, save_dir, typ
 def calculate_af_order_parameter(k_points_tuple, spin_sf, L, save_dir, log_file=None, spin_data=None):
     """
     计算反铁磁序参数 (AF Order Parameter)：m^2(L) = S(π, π)/L^2
+    同时计算基于实空间的反铁磁序参量（交错磁化率）
 
     参数:
     - k_points_tuple: 包含k_points_x和k_points_y的元组
@@ -823,12 +879,10 @@ def calculate_af_order_parameter(k_points_tuple, spin_sf, L, save_dir, log_file=
     - L: 系统大小
     - save_dir: 保存目录
     - log_file: 日志文件
-    - spin_data: 自旋相关函数数据列表（可选，保持与其他序参量函数接口一致）
+    - spin_data: 自旋相关函数数据列表（可选，用于计算实空间的反铁磁序参量）
     """
     # 解包k点
     k_points_x, k_points_y = k_points_tuple
-    # 忽略未使用的参数
-    _ = spin_data  # 保持接口一致性
     if log_file is None:
         # 默认日志文件将由调用者提供
         log_file = os.path.join(os.path.dirname(save_dir), f"analyze_L={L}_J2=0.05_J1=0.05.log")
@@ -872,24 +926,55 @@ def calculate_af_order_parameter(k_points_tuple, spin_sf, L, save_dir, log_file=
     log_message(log_file, f"结构因子最大值位置: ({k_max_x:.4f}, {k_max_y:.4f}), 值: {S_max:.6f}")
     log_message(log_file, f"最大值与(π, π)的偏差: ({k_max_x-np.pi:.4f}, {k_max_y-np.pi:.4f})")
 
-    # 计算反铁磁序参数
-    # L是简盘数量，每个简盘有4个点，所以总格点数是L*L*4
-    m_squared = S_pi_pi / (L * L * 4)
+    # 计算反铁磁序参数（基于k空间）
+    # 注意：结构因子已经在calculate_spin_structure_factor函数中通过spin_sf /= N进行了归一化
+    # 所以这里直接使用S_pi_pi，而不需要再次除以N
+    m_squared_k = S_pi_pi
+    log_message(log_file, "结构因子已经在计算时归一化，直接使用S(π,π)作为反铁磁序参量")
+
+    # 计算基于实空间的反铁磁序参量（如果提供了spin_data）
+    m_squared_r = None
+    if spin_data is not None and len(spin_data) > 0:
+        log_message(log_file, "计算基于实空间的反铁磁序参量（交错磁化率）...")
+
+        # 初始化交错磁化率
+        s_m = 0.0
+
+        # 计算交错磁化率：∑_r (-1)^(r_x+r_y) <S_0·S_r>
+        for data in spin_data:
+            r_x = data['r_x']
+            r_y = data['r_y']
+
+            # 计算交错因子 (-1)^(r_x+r_y)
+            # 由于r_x和r_y可能是浮点数，我们需要四舍五入到最接近的整数
+            staggered_factor = (-1) ** (int(round(r_x)) + int(round(r_y)))
+
+            # 累加贡献
+            s_m += staggered_factor * data['corr']
+
+        # 归一化，使用总位点数
+        N = L * L * 4
+        m_squared_r = (s_m + 0.75) / N  # 加0.75是为了包含自相关项
+
+        log_message(log_file, f"基于实空间的反铁磁序参量: m^2_r(L) = {m_squared_r:.6f}")
+        log_message(log_file, f"k空间和实空间计算结果的差异: {abs(m_squared_k - m_squared_r):.6f}")
 
     # 保存结果
     af_data = {
         'S_pi_pi': S_pi_pi,
-        'm_squared': m_squared,
+        'm_squared_k': m_squared_k,
+        'm_squared_r': m_squared_r,
         'L': L
     }
 
     np.save(os.path.join(save_dir, "af_order_parameter.npy"), af_data)
 
     # 记录反铁磁序参数信息
-    log_message(log_file, f"反铁磁序参数 m^2(L) = {m_squared:.6f}")
+    log_message(log_file, f"基于k空间的反铁磁序参数 m^2_k(L) = {m_squared_k:.6f}")
     log_message(log_file, f"S(π, π) = {S_pi_pi:.6f}")
 
-    return m_squared
+    # 返回k空间计算的结果，保持与之前的接口一致
+    return m_squared_k
 
 
 def calculate_plaquette_order_parameter(plaquette_data, L, save_dir, log_file=None):
@@ -923,12 +1008,21 @@ def calculate_plaquette_order_parameter(plaquette_data, L, save_dir, log_file=No
     log_message(log_file, "计算简盘序参量...")
 
     # 从plaquette_data中提取相关函数
-    # 寻找位置接近 (L/2, L/2) 和 (L/2-1, L/2-1) 的数据点
+    # 获取晶格的物理尺寸（每个简盘在物理空间中占据2x2的区域）
+    # 由于我们没有直接访问lattice对象，使用L作为简盘数量来计算物理尺寸
+    physical_size_x = L * 2.0  # 每个简盘在x方向占2个单位
+    physical_size_y = L * 2.0  # 每个简盘在y方向占2个单位
+
+    # 寻找位置接近系统中心和接近中心的数据点
     C_L2_L2 = None
     C_L2m1_L2m1 = None
 
-    target_r1 = np.array([L/2, L/2])
-    target_r2 = np.array([L/2 - 1, L/2 - 1])
+    # 系统中心位置
+    target_r1 = np.array([physical_size_x/2, physical_size_y/2])
+    # 接近中心的位置（移动一个自旋的距离，而不是一个简盘）
+    target_r2 = np.array([physical_size_x/2 - 1.0, physical_size_y/2 - 1.0])
+
+    log_message(log_file, f"寻找接近中心位置 ({target_r1[0]:.2f}, {target_r1[1]:.2f}) 和次中心位置 ({target_r2[0]:.2f}, {target_r2[1]:.2f}) 的相关函数")
 
     min_dist1 = float('inf')
     min_dist2 = float('inf')
@@ -940,15 +1034,19 @@ def calculate_plaquette_order_parameter(plaquette_data, L, save_dir, log_file=No
         dist1 = np.linalg.norm(r - target_r1)
         dist2 = np.linalg.norm(r - target_r2)
 
-        # 更新最接近 (L/2, L/2) 的点
+        # 更新最接近系统中心的点
         if dist1 < min_dist1:
             min_dist1 = dist1
             C_L2_L2 = data['corr']
 
-        # 更新最接近 (L/2-1, L/2-1) 的点
+        # 更新最接近次中心位置的点
         if dist2 < min_dist2:
             min_dist2 = dist2
             C_L2m1_L2m1 = data['corr']
+
+    # 记录找到的最接近点的位置
+    log_message(log_file, f"找到最接近中心的点，距离为 {min_dist1:.4f}")
+    log_message(log_file, f"找到最接近次中心的点，距离为 {min_dist2:.4f}")
 
     # 如果找不到合适的点，给出警告
     if C_L2_L2 is None or C_L2m1_L2m1 is None:
@@ -1005,36 +1103,64 @@ def calculate_dimer_order_parameter(dimer_data, L, save_dir, log_file=None):
     log_message(log_file, "-"*80)
     log_message(log_file, "计算二聚体序参量...")
 
-    # 计算二聚体序参量
-    D_squared_sum = 0.0
-    count = 0
+    # 计算二聚体序参量，分别处理x方向和y方向
+    D_squared_sum_x = 0.0  # x方向
+    D_squared_sum_y = 0.0  # y方向
+    count_x = 0
+    count_y = 0
 
     for data in dimer_data:
         r_x = data['r_x']
-        # 计算 (-1)^{r_x} 的符号
-        # 由于r_x可能是浮点数，我们需要四舍五入到最接近的整数
-        sign = (-1) ** int(round(r_x))
+        r_y = data['r_y']
+        direction = data.get('direction', 'x')  # 默认为x方向
 
-        # 累加 C_d(r) * (-1)^{r_x}
-        D_squared_sum += data['corr'] * sign
-        count += 1
+        # 根据二聚体方向选择合适的坐标计算符号
+        if direction == 'x':
+            # x方向二聚体使用x坐标计算符号
+            sign = (-1) ** int(round(r_x))
+            D_squared_sum_x += data['corr'] * sign
+            count_x += 1
+        elif direction == 'y':
+            # y方向二聚体使用y坐标计算符号
+            sign = (-1) ** int(round(r_y))
+            D_squared_sum_y += data['corr'] * sign
+            count_y += 1
 
-    # 归一化
-    if count > 0:
-        D_squared = D_squared_sum / (L * L * 4)  # 使用总位点数N=L*L*4进行归一化
+    # 总位点数
+    N = L * L * 4
+
+    # 分别归一化x和y方向
+    if count_x > 0:
+        D_squared_x = D_squared_sum_x / N
     else:
-        D_squared = 0.0
-        log_message(log_file, "警告: 没有二聚体相关函数数据来计算二聚体序参量")
+        D_squared_x = 0.0
+        log_message(log_file, "警告: 没有x方向二聚体相关函数数据")
+
+    if count_y > 0:
+        D_squared_y = D_squared_sum_y / N
+    else:
+        D_squared_y = 0.0
+        log_message(log_file, "警告: 没有y方向二聚体相关函数数据")
+
+    # 计算总的二聚体序参量（取平均）
+    D_squared = 0.5 * (D_squared_x + D_squared_y)
+
+    log_message(log_file, f"x方向二聚体序参量: D^2_x = {D_squared_x:.6f} (来自{count_x}个数据点)")
+    log_message(log_file, f"y方向二聚体序参量: D^2_y = {D_squared_y:.6f} (来自{count_y}个数据点)")
 
     # 保存结果
     dimer_order_data = {
         'D_squared': D_squared,
+        'D_squared_x': D_squared_x,
+        'D_squared_y': D_squared_y,
+        'count_x': count_x,
+        'count_y': count_y,
         'L': L
     }
 
     np.save(os.path.join(save_dir, "dimer_order_parameter.npy"), dimer_order_data)
 
     # 记录二聚体序参量信息
-    log_message(log_file, f"二聚体序参量 D^2 = {D_squared:.6f}")
+    log_message(log_file, f"总二聚体序参量 D^2 = {D_squared:.6f} (x和y方向的平均值)")
 
     return D_squared
