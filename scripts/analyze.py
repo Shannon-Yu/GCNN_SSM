@@ -31,10 +31,6 @@ from src.analysis.structure_factors import (
     calculate_spin_structure_factor,
     calculate_plaquette_structure_factor,
     calculate_dimer_structure_factor,
-    calculate_correlation_ratios,
-    calculate_af_order_parameter,
-    calculate_plaquette_order_parameter,
-    calculate_dimer_order_parameter
 )
 
 def main(args=None):
@@ -95,38 +91,34 @@ def main(args=None):
 
         # 计算自旋因子
         log_message(analyze_log, "="*80)
-        log_message(analyze_log, "1. 计算自旋结构因子")
         k_points_tuple, spin_sf = calculate_spin_structure_factor(vqs, lattice, L, spin_dir, analyze_log)
         plot_structure_factor(k_points_tuple, spin_sf, L, J2, J1, "Spin", spin_dir)
-        # 加载自旋相关函数数据，与plaquette和dimer处理方式保持一致
-        spin_data = np.load(os.path.join(spin_dir, "spin_correlation_data.npy"), allow_pickle=True)
-        af_order = calculate_af_order_parameter(k_points_tuple, spin_sf, L, spin_dir, analyze_log, spin_data)
-        neel_ratio, _ = calculate_correlation_ratios(k_points_tuple, spin_sf, spin_dir, "neel", analyze_log)
-
+        
+        # 从存储结构中加载数据
+        spin_data_storage = np.load(os.path.join(spin_dir, "spin_data.npy"), allow_pickle=True).item()
+        correlation_data = spin_data_storage['correlation_data']
+                
         # 计算二聚体结构因子
         log_message(analyze_log, "="*80)
-        log_message(analyze_log, "2. 计算二聚体结构因子")
         k_points_tuple, dimer_sf = calculate_dimer_structure_factor(vqs, lattice, L, dimer_dir, analyze_log)
         plot_structure_factor(k_points_tuple, dimer_sf, L, J2, J1, "Dimer", dimer_dir)
-        dimer_data = np.load(os.path.join(dimer_dir, "dimer_correlation_data.npy"), allow_pickle=True)
-        dimer_order = calculate_dimer_order_parameter(dimer_data, L, dimer_dir, analyze_log)
-        dimer_ratio, _ = calculate_correlation_ratios(k_points_tuple, dimer_sf, dimer_dir, "dimer", analyze_log)
-
+        
+        # 从存储结构中加载数据
+        dimer_data_storage = np.load(os.path.join(dimer_dir, "dimer_data.npy"), allow_pickle=True).item()
+        dimer_data = dimer_data_storage['correlation_data']
+                
         # 计算简盘因子
         log_message(analyze_log, "="*80)
-        log_message(analyze_log, "3. 计算简盘结构因子")
         k_points_tuple, plaq_sf = calculate_plaquette_structure_factor(vqs, lattice, L, plaquette_dir, analyze_log)
         plot_structure_factor(k_points_tuple, plaq_sf, L, J2, J1, "Plaquette", plaquette_dir)
-        plaquette_data = np.load(os.path.join(plaquette_dir, "plaquette_correlation_data.npy"), allow_pickle=True)
-        plaq_order = calculate_plaquette_order_parameter(plaquette_data, L, plaquette_dir, analyze_log)
-        plaq_ratio, _ = calculate_correlation_ratios(k_points_tuple, plaq_sf, plaquette_dir, "plaquette", analyze_log)
-
-
-
+        
+        # 从存储结构中加载数据
+        plaquette_data_storage = np.load(os.path.join(plaquette_dir, "plaquette_data.npy"), allow_pickle=True).item()
+        plaquette_data = plaquette_data_storage['correlation_data']
+                
         # 输出结果摘要
         log_message(analyze_log, "="*80)
-        log_message(analyze_log, f"分析完成! 相关比率: Neel={neel_ratio:.4f}, Plaquette={plaq_ratio:.4f}, Dimer={dimer_ratio:.4f}")
-        log_message(analyze_log, f"序参量: AF Order={af_order:.6f}, Plaquette Order={plaq_order:.6f}, Dimer Order={dimer_order:.6f}")
+        log_message(analyze_log, f"结构因子计算完成!")
         log_message(analyze_log, "="*80)
 
     except Exception as e:
