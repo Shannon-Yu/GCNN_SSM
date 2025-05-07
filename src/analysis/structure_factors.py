@@ -1020,7 +1020,7 @@ def calculate_plaquette_order_parameter(plaquette_data, L, save_dir, log_file=No
     # 系统中心位置
     target_r1 = np.array([physical_size_x/2, physical_size_y/2])
     # 接近中心的位置（移动一个自旋的距离，而不是一个简盘）
-    target_r2 = np.array([physical_size_x/2 - 1.0, physical_size_y/2 - 1.0])
+    target_r2 = np.array([physical_size_x/2 - 2.0, physical_size_y/2 - 2.0])
 
     log_message(log_file, f"寻找接近中心位置 ({target_r1[0]:.2f}, {target_r1[1]:.2f}) 和次中心位置 ({target_r2[0]:.2f}, {target_r2[1]:.2f}) 的相关函数")
 
