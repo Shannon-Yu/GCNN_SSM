@@ -54,8 +54,7 @@ def main(args=None):
 
     # 创建日志文件
     analyze_log = os.path.join(analysis_dir, f"analyze_L={L}_J2={J2:.2f}_J1={J1:.2f}.log")
-    log_message(analyze_log, "="*80)
-    log_message(analyze_log, f"开始分析量子态: L={L}, J2={J2:.2f}, J1={J1:.2f}")
+
 
     # 不再需要单独的plots目录，图像将保存在各自的目录中
 
@@ -67,8 +66,6 @@ def main(args=None):
             return
 
         # 加载量子态 - 使用较小的采样数初始化
-        log_message(analyze_log, "-"*80)
-        log_message(analyze_log, f"加载量子态: L={L}, J2={J2:.2f}, J1={J1:.2f}")
         vqs, lattice, _, _ = load_quantum_state(
             model_file, L, J2, J1,
             n_samples=2**12,  # 初始使用较小的采样数
@@ -77,7 +74,6 @@ def main(args=None):
         )
 
         # 在计算前增加采样数
-        log_message(analyze_log, f"增加采样数量到 2^20...")
         vqs.n_samples = 2**20  # 在实际计算前增加采样数
 
         # 创建子目录
@@ -90,36 +86,33 @@ def main(args=None):
         os.makedirs(dimer_dir, exist_ok=True)
 
         # 计算自旋因子
+        log_message(analyze_log, "-"*80)
+        log_message(analyze_log, f"加载量子态: L={L}, J2={J2:.2f}, J1={J1:.2f}")
         log_message(analyze_log, "="*80)
         k_points_tuple, spin_sf = calculate_spin_structure_factor(vqs, lattice, L, spin_dir, analyze_log)
         plot_structure_factor(k_points_tuple, spin_sf, L, J2, J1, "Spin", spin_dir)
-        
         # 从存储结构中加载数据
         spin_data_storage = np.load(os.path.join(spin_dir, "spin_data.npy"), allow_pickle=True).item()
         correlation_data = spin_data_storage['correlation_data']
+        log_message(analyze_log, f"自旋结构因子计算完成!")
                 
         # 计算二聚体结构因子
         log_message(analyze_log, "="*80)
         k_points_tuple, dimer_sf = calculate_dimer_structure_factor(vqs, lattice, L, dimer_dir, analyze_log)
         plot_structure_factor(k_points_tuple, dimer_sf, L, J2, J1, "Dimer", dimer_dir)
-        
         # 从存储结构中加载数据
         dimer_data_storage = np.load(os.path.join(dimer_dir, "dimer_data.npy"), allow_pickle=True).item()
         dimer_data = dimer_data_storage['correlation_data']
-                
+        log_message(analyze_log, f"二聚体结构因子计算完成!")
+
         # 计算简盘因子
         log_message(analyze_log, "="*80)
         k_points_tuple, plaq_sf = calculate_plaquette_structure_factor(vqs, lattice, L, plaquette_dir, analyze_log)
         plot_structure_factor(k_points_tuple, plaq_sf, L, J2, J1, "Plaquette", plaquette_dir)
-        
         # 从存储结构中加载数据
         plaquette_data_storage = np.load(os.path.join(plaquette_dir, "plaquette_data.npy"), allow_pickle=True).item()
         plaquette_data = plaquette_data_storage['correlation_data']
-                
-        # 输出结果摘要
-        log_message(analyze_log, "="*80)
-        log_message(analyze_log, f"结构因子计算完成!")
-        log_message(analyze_log, "="*80)
+        log_message(analyze_log, f"简盘结构因子计算完成!")
 
     except Exception as e:
         log_message(analyze_log, "!"*80)
